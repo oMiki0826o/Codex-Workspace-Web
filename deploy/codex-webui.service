@@ -1,0 +1,24 @@
+[Unit]
+Description=Codex WebUI (private Next.js interface)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=allen
+Group=allen
+WorkingDirectory=/home/allen/4TB/codex-miki-build/Codex-WebUI-NextJS
+EnvironmentFile=/home/allen/4TB/codex-miki-build/Codex-WebUI-NextJS/.env
+Environment=NODE_ENV=production
+Environment=PATH=/home/allen/codex-miki/nodejs/node-v24.22.2-linux-x64/bin:/usr/local/bin:/usr/bin:/bin:/home/allen/.local/bin
+ExecStart=/home/allen/codex-miki/nodejs/node-v24.22.2-linux-x64/bin/npm run start
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

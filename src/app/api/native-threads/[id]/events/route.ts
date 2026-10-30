@@ -1,0 +1,5 @@
+import { guard,error } from '@/lib/http.mjs';
+import { resolveAllowedWorkspace } from '@/lib/paths.mjs';
+import { getNativeSessionSync } from '@/lib/native-session-sync.mjs';
+export const runtime='nodejs';
+export async function GET(req:Request,{params}:{params:Promise<{id:string}>}){const denied=guard(req);if(denied)return denied;const {id}=await params;const workspace=resolveAllowedWorkspace(process.env.DEFAULT_PROJECT_PATH||'');const sync=getNativeSessionSync(workspace);if(!sync.read(id))return error('找不到工作區原生對話',404);const encoder=new TextEncoder();const stream=new ReadableStream({start(controller){const send=()=>controller.enqueue(encoder.encode(`data: ${JSON.stringify({type:'changed',id})}\n\n`));const listener=()=>send();sync.on('changed',listener);send();const heartbeat=setInterval(()=>controller.enqueue(encoder.encode(': keepalive\n\n')),15000);heartbeat.unref();req.signal.addEventListener('abort',()=>{clearInterval(heartbeat);sync.off('changed',listener);controller.close();},{once:true});}});return new Response(stream,{headers:{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive'}});}

@@ -1,0 +1,24 @@
+[Unit]
+Description=Codex WebUI (local VPN interface)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/allen/4TB/codex-miki-build/Codex-WebUI-NextJS
+EnvironmentFile=/home/allen/4TB/codex-miki-build/Codex-WebUI-NextJS/.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=PATH=/home/allen/codex-miki/nodejs/node-v24.22.2-linux-x64/bin:/home/allen/.local/bin:/usr/bin:/bin
+ExecStart=/home/allen/codex-miki/nodejs/node-v24.22.2-linux-x64/bin/npm run start
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+ReadWritePaths=/home/allen/4TB/codex-miki-build/codex-web/data
+
+[Install]
+WantedBy=default.target
