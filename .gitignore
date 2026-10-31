@@ -1,40 +1,50 @@
+# Dependencies
 node_modules/
+
+# Next.js and TypeScript build output
 .next/
+out/
+dist/
 *.tsbuildinfo
+
+# Environment files
 .env
 .env.local
 .env.*
 !.env.example
+
+# Local application data and SQLite databases
+.data/
 *.db
 *.db-shm
 *.db-wal
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
-.data/
+
+# Logs, process files, and test output
 *.log
 *.log.*
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
+*.pid
+*.seed
 coverage/
 .nyc_output/
 test-results/
 playwright-report/
 *.lcov
+
+# Tool caches and deployment output
 .turbo/
 .vercel/
-dist/
-out/
-*.pid
-*.seed
-*.pem
-*.key
-.DS_Store
 .worktrees/
 .superpowers/
 
-# Local AI-assistant collaboration context; never publish it with the app.
+# Secrets and operating system files
+*.pem
+*.key
+.DS_Store
+
+# Local AI-assistant collaboration context
 AGENTS.md
 CLAUDE.md
 GEMINI.md
