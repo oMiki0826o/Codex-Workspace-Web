@@ -17,16 +17,25 @@ export class AppServerClient extends EventEmitter {
   this.#child=child;
   child.stdout.on('data',data=>this.#push(data));
   child.stderr.on('data',data=>this.emit('stderr',data.toString('utf8')));
-  child.on('exit',(code,signal)=>{this.#child=null;for(const {reject} of this.#pending.values())reject(new Error(`Codex App Server ended (${code??signal??'unknown'})`));this.#pending.clear();this.emit('exit',{code,signal});});
+  let terminated=false;
+  const terminate=(reason,code=null,signal=null)=>{
+   if(terminated)return;terminated=true;
+   this.#child=null;
+   for(const {reject} of this.#pending.values())reject(new Error(`Codex App Server ended (${reason})`));
+   this.#pending.clear();
+   this.emit('exit',{code,signal});
+  };
+  child.on('error',error=>{this.emit('stderr',`Codex App Server spawn failed: ${error.message}`);terminate(error.message);});
+  child.on('exit',(code,signal)=>terminate(String(code??signal??'unknown'),code,signal));
   await this.#requestRaw('initialize',{clientInfo:{name:'codex-local-pwa',version:'1.0.0'},capabilities:{experimentalApi:false}});
-  this.notify('initialized',{});
+  await this.notify('initialized',{});
  }
  async request(method,params){
   await this.connect();return this.#requestRaw(method,params);
  }
  async #requestRaw(method,params){
   if(!this.#child)throw new Error('Codex App Server 尚未啟動');const id=this.#nextId++;const payload=JSON.stringify({jsonrpc:'2.0',id,method,params});
-  return await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.#pending.delete(id);reject(new Error(`Codex App Server RPC timeout: ${method}`));},30000);timer.unref?.();this.#pending.set(id,{resolve:value=>{clearTimeout(timer);resolve(value);},reject:error=>{clearTimeout(timer);reject(error);}});this.#child.stdin.write(`${payload}\n`,error=>{if(error){this.#pending.delete(id);reject(error);}});});
+  return await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.#pending.delete(id);reject(new Error(`Codex App Server RPC timeout: ${method}`));},30000);timer.unref?.();this.#pending.set(id,{resolve:value=>{clearTimeout(timer);resolve(value);},reject:error=>{clearTimeout(timer);reject(error);}});this.#child.stdin.write(`${payload}\n`,error=>{if(error){const pending=this.#pending.get(id);this.#pending.delete(id);if(pending)pending.reject(error);}});});
  }
  async notify(method,params){if(!this.connected)return;const payload=JSON.stringify({jsonrpc:'2.0',method,params});await new Promise((resolve,reject)=>this.#child.stdin.write(`${payload}\n`,error=>error?reject(error):resolve()));}
  async startThread({cwd,model='',sandbox='workspace-write'}){return this.request('thread/start',{cwd,model:model||null,sandbox});}

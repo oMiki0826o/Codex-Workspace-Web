@@ -1,8 +1,10 @@
 'use client';
 import React, {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import { Plus, FolderClosed, PanelLeft, PanelRight, Settings2, Search, Moon, Sun, Bot, CircleCheck, CircleAlert, AlertCircle, LoaderCircle, Send, Square, ChevronRight, ChevronDown, GitBranch, FileCode2, TerminalSquare, X, LockKeyhole, SlidersHorizontal, ShieldCheck, RefreshCw, FolderGit2, Command, Code2 } from 'lucide-react';
+import { Plus, FolderClosed, PanelLeft, PanelRight, Settings2, Search, Moon, Sun, Bot, CircleCheck, CircleAlert, AlertCircle, LoaderCircle, Send, Square, ChevronRight, ChevronDown, GitBranch, FileCode2, TerminalSquare, X, LockKeyhole, ShieldCheck, RefreshCw, FolderGit2, Command, Code2 } from 'lucide-react';
 import type {Project,ThreadSummary,Thread,Job,EventRecord,FileNode,NativeThread,CodexStatus} from './types';
 import MessageStream from './MessageStream';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 async function api<T>(path:string,init?:RequestInit):Promise<T>{
  const response=await fetch(path,{cache:'no-store',...init,headers:{...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers}});
@@ -34,15 +36,40 @@ export default function Workspace(){
  const [theme,setTheme]=useState(initialTheme);const [connected,setConnected]=useState(false);const [version,setVersion]=useState('');
  const [loading,setLoading]=useState(false);const [submitting,setSubmitting]=useState(false);const [error,setError]=useState('');
  const [historyTruncated,setHistoryTruncated]=useState(false);
- const endRef=useRef<HTMLDivElement>(null);const selection=useRef(0);
+ const chatScrollRef=useRef<HTMLDivElement>(null);
+ const closeToBottom=useRef(true);
+ const selection=useRef(0);
  useEffect(()=>{void api<{authenticated:boolean,configured:boolean}>('/api/auth').then(x=>{setConfigured(x.configured);setAuth(x.authenticated?'ready':'login');}).catch(()=>setAuth('login'));},[]);
  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('codex-web-theme',theme)},[theme]);
+ useEffect(()=>{
+  const root=document.documentElement;
+  const viewport=window.visualViewport;
+  let raf=0;
+  const sync=()=>{
+   window.cancelAnimationFrame(raf);
+   raf=window.requestAnimationFrame(()=>{
+    const height=viewport?.height||window.innerHeight;
+    const top=viewport?.offsetTop||0;
+    const keyboardOpen=Boolean(viewport&&window.innerHeight-viewport.height>120);
+    root.style.setProperty('--visual-viewport-height',`${Math.round(height)}px`);
+    root.style.setProperty('--visual-viewport-top',`${Math.max(0,Math.round(top))}px`);
+    root.style.setProperty('--composer-safe-bottom',keyboardOpen?'0px':'env(safe-area-inset-bottom, 0px)');
+   });
+  };
+  sync();
+  viewport?.addEventListener('resize',sync);
+  viewport?.addEventListener('scroll',sync);
+  window.addEventListener('resize',sync);
+  window.addEventListener('orientationchange',sync);
+  return ()=>{window.cancelAnimationFrame(raf);viewport?.removeEventListener('resize',sync);viewport?.removeEventListener('scroll',sync);window.removeEventListener('resize',sync);window.removeEventListener('orientationchange',sync);root.style.removeProperty('--visual-viewport-height');root.style.removeProperty('--visual-viewport-top');root.style.removeProperty('--composer-safe-bottom');};
+ },[]);
  useEffect(()=>{document.body.classList.toggle('drawer-active',sidebarOpen||rightOpen||Boolean(modal));return()=>document.body.classList.remove('drawer-active');},[sidebarOpen,rightOpen,modal]);
  const notify=useCallback((message:string)=>{setError(message);window.setTimeout(()=>setError(''),6000)},[]);
  const loadThreads=useCallback(async(projectId:string)=>{const result=await api<{threads:ThreadSummary[]}>(`/api/threads?projectId=${encodeURIComponent(projectId)}`);setThreads(result.threads);return result.threads},[]);
  const loadThread=useCallback(async(id:string)=>{const token=++selection.current;setLoading(true);
  try{const data=await api<{thread:Thread}>(`/api/threads/${id}`);const all=await Promise.all(data.thread.jobs.map(async j=>{let after=0;let truncated=false;const gathered:EventRecord[]=[];for(let page=0;page<200;page++){const res=await api<{events:EventRecord[],hasMore:boolean}>(`/api/jobs/${j.id}/history?after=${after}`).catch(()=>({events:[],hasMore:false}));gathered.push(...res.events);if(!res.hasMore)break;after=res.events.at(-1)?.id||after;if(page===199)truncated=true;}return [j.id,gathered,truncated] as const;}));
- if(token===selection.current){setThread(data.thread);setEvents(Object.fromEntries(all.map(([jobId,items])=>[jobId,items])));setHistoryTruncated(all.some(([, ,truncated])=>truncated));if(data.thread.codexThreadId){const nativeData=await api<{thread:NativeThread}>(`/api/native-threads/${data.thread.codexThreadId}`).catch(()=>null);setNative(nativeData?.thread||null);}else setNative(null);}}
+ const nativeData=data.thread.codexThreadId?await api<{thread:NativeThread}>(`/api/native-threads/${data.thread.codexThreadId}`).catch(()=>null):null;
+ if(token===selection.current){setThread(data.thread);setEvents(Object.fromEntries(all.map(([jobId,items])=>[jobId,items])));setHistoryTruncated(all.some(([, ,truncated])=>truncated));setNative(nativeData?.thread||null);}}
  catch(e){if(token===selection.current)notify(String(e));}finally{if(token===selection.current)setLoading(false);}
  },[notify]);
  const loadProject=useCallback(async(p:Project,selectFirst=true)=>{selection.current++;setProject(p);setThread(null);setNative(null);setThreads([]);setEvents({});setHistoryTruncated(false);setSidebarOpen(false);
@@ -61,6 +88,26 @@ export default function Workspace(){
   for(const item of nativeThreads)if(!knownNativeIds.has(item.id))combined.push({key:`native-${item.id}`,threadId:null,codexThreadId:item.id,title:item.title,updatedAt:item.updatedAt});
   return combined.sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
  },[threads,nativeThreads]);
+ // Native sessions include the messages produced by WebUI jobs. Display only
+ // native turns not represented by those jobs to avoid showing the same prompt
+ // and reply twice. Match from newest to oldest so repeated prompts remain stable.
+ const nativeVisibleItems=useMemo(()=>{
+  if(!native)return [];
+  const groups:Array<typeof native.items>=[];
+  for(const item of native.items){
+   if(item.role==='user'||!groups.length)groups.push([item]);
+   else groups[groups.length-1].push(item);
+  }
+  const hidden=new Set<number>();
+  for(const job of [...(thread?.jobs||[])].reverse()){
+   for(let i=groups.length-1;i>=0;i--){
+    if(!hidden.has(i)&&groups[i][0]?.role==='user'&&groups[i][0].text.trim()===job.prompt.trim()){
+     hidden.add(i);break;
+    }
+   }
+  }
+  return groups.flatMap((group,index)=>hidden.has(index)?[]:group);
+ },[native,thread?.jobs]);
  const selectedProjectId=project?.id;
  const jobIds=thread?.jobs.filter(j=>!finishStates.includes(j.status)).map(j=>j.id).join(',')||'';
  useEffect(()=>{if(!thread||!jobIds)return;
@@ -76,10 +123,13 @@ export default function Workspace(){
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[jobIds,thread?.id,project?.id,loadThread,loadThreads]);
  useEffect(()=>{if(!native?.id||!thread?.id)return;const stream=new EventSource(`/api/native-threads/${native.id}/events`);stream.onmessage=()=>{void loadThread(thread.id);if(selectedProjectId)void loadThreads(selectedProjectId);};stream.onerror=()=>{stream.close();};return()=>stream.close();},[native?.id,thread?.id,selectedProjectId,loadThread,loadThreads]);
- useEffect(()=>endRef.current?.scrollIntoView({behavior:'smooth',block:'end'}),[thread?.jobs.length,events]);
+ useEffect(()=>{
+  const container=chatScrollRef.current;
+  if(container&&closeToBottom.current)container.scrollTop=container.scrollHeight;
+ },[thread?.jobs.length,events,native?.items.length]);
  async function login(e:React.FormEvent){e.preventDefault();setLoginBusy(true);try{await post('/api/auth',{password});setPassword('');setAuth('ready');}catch(e){notify(e instanceof Error?e.message:'登入失敗');}finally{setLoginBusy(false);}}
  async function addProject(e:React.FormEvent){e.preventDefault();try{const result=await post('/api/projects',{name:projectName,path});const newP=result.project as Project;setProjects(s=>[newP,...s.filter(p=>p.id!==newP.id)]);setPath('');setProjectName('');setModal(null);await loadProject(newP,false);}catch(e){notify(e instanceof Error?e.message:'新增失敗');}}
- async function newThread(){if(!project){setModal('project');return;}try{selection.current++;const data=await post('/api/threads',{projectId:project.id});const t=data.thread as Thread;setThreads(x=>[{id:t.id,projectId:t.projectId,title:t.title,updatedAt:t.updatedAt,codexThreadId:null},...x]);setThread(t);setNative(null);setEvents({});setHistoryTruncated(false);setSidebarOpen(false);setPrompt('');}catch(e){notify(String(e));}}
+ async function newThread(){if(!project){setModal('project');return;}try{const data=await post('/api/threads',{projectId:project.id});const t=data.thread as Thread;selection.current++;setThreads(x=>[{id:t.id,projectId:t.projectId,title:t.title,updatedAt:t.updatedAt,codexThreadId:null},...x]);setThread(t);setNative(null);setEvents({});setHistoryTruncated(false);setSidebarOpen(false);setPrompt('');}catch(e){notify(String(e));}}
  async function selectNative(codexThreadId:string){if(!project)return;try{const data=await post('/api/threads',{projectId:project.id,codexThreadId});const current=data.thread as Thread;await loadThreads(project.id);await loadThread(current.id);setSidebarOpen(false);}catch(e){notify(e instanceof Error?e.message:'無法開啟原生對話');}}
  async function submit(){const content=prompt.trim();if(!project||!content||submitting||activeJob)return;
  setSubmitting(true);try{
@@ -118,11 +168,11 @@ export default function Workspace(){
  <div className={`scrim ${sidebarOpen?'active':''}`} onClick={()=>setSidebarOpen(false)}/>
  <main className="main">
   <div className="session-head"><div className="session-heading-group"><div className="session-title"><span>{thread?.title||'新增對話'}</span></div><div className="session-subtitle">{project?.path||'固定工作區'}</div></div>
-   <div className="session-actions"><span className="project-branch"><GitBranch size={13}/> workspace</span><button type="button" className="outline-btn" onClick={()=>setRightOpen(x=>!x)}><PanelRight size={15}/><span className="hide-small">檔案</span></button><button type="button" className="outline-btn" onClick={()=>setModal('settings')}><SlidersHorizontal size={15}/><span className="hide-small">設定</span></button></div>
+   <div className="session-actions"><span className="project-branch"><GitBranch size={13}/> workspace</span><button type="button" className="outline-btn" onClick={()=>setRightOpen(x=>!x)}><PanelRight size={15}/><span className="hide-small">檔案</span></button></div>
   </div>
-  <div className="chat-scroll"><div className="chat-content">
+  <div className="chat-scroll" ref={chatScrollRef} onScroll={event=>{const el=event.currentTarget;closeToBottom.current=el.scrollHeight-el.scrollTop-el.clientHeight<110;}}><div className="chat-content">
   {!project?<div className="welcome-screen"><div className="welcome-icon"><Bot size={31}/></div><h1>正在連接固定工作區</h1><p>確認 DEFAULT_PROJECT_PATH 指向這個 Codex 工作區即可開始使用。</p></div>:
-   thread?<>{historyTruncated&&<div className="error-box"><AlertCircle size={16}/>此對話的事件過多, 目前僅載入前 200,000 筆事件。</div>}{native?<><div className="native-messages">{native.items.map(item=><div className={`native-message ${item.role}`} key={item.id}><strong>{item.role==='user'?'你':'Codex'}</strong><p>{item.text}</p></div>)}</div>{native.usage&&<div className="token-usage">本對話累計 · 輸入 {native.usage.input_tokens||0} · 輸出 {native.usage.output_tokens||0} · 總計 {native.usage.total_tokens||0} tokens</div>}</>:null}{thread.jobs.length>0&&<MessageStream jobs={thread.jobs} events={events} onApproval={approve}/>}<div ref={endRef}/></>:<div className="empty-chat"><div className="empty-mark"><Bot size={32}/></div><h2>從一個指令開始</h2><p>Codex 將在 <strong>{project.name}</strong> 專案目錄中工作。</p><div className="example-prompts"><span onClick={()=>setPrompt('檢查專案架構並提出改善建議')}>檢查專案架構</span><span onClick={()=>setPrompt('執行現有測試並整理問題')}>執行測試</span><span onClick={()=>setPrompt('閱讀 README 並說明專案如何運作')}>瞭解專案</span></div></div>}
+   thread?<>{historyTruncated&&<div className="error-box"><AlertCircle size={16}/>此對話的歷史事件過多，僅載入前 200,000 筆。</div>}{native?<><div className="native-messages">{nativeVisibleItems.map(item=><div className={`native-message ${item.role}`} key={item.id}><strong>{item.role==='user'?'你':'Codex'}</strong>{item.role==='assistant'?<div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>{item.text}</ReactMarkdown></div>:<p>{item.text}</p>}</div>)}</div>{native.usage&&<div className="token-usage">本對話累計 · 輸入 {native.usage.input_tokens||0} · 輸出 {native.usage.output_tokens||0} · 總計 {native.usage.total_tokens||0} tokens</div>}</>:null}{thread.jobs.length>0&&<MessageStream jobs={thread.jobs} events={events} onApproval={approve}/>}</>:<div className="empty-chat"><div className="empty-mark"><Bot size={32}/></div><h2>從一個指令開始</h2><p>Codex 將在 <strong>{project.name}</strong> 專案目錄中工作。</p><div className="example-prompts"><span onClick={()=>setPrompt('檢查專案架構並提出改善建議')}>檢查專案架構</span><span onClick={()=>setPrompt('執行現有測試並整理問題')}>執行測試</span><span onClick={()=>setPrompt('閱讀 README 並說明專案如何運作')}>瞭解專案</span></div></div>}
    </div></div>
   <div className="composer-wrap"><form className="composer" onSubmit={e=>{e.preventDefault();void (activeJob?stop():submit());}}>
    <label htmlFor="prompt" className="screen-reader-only">傳送訊息給 Codex</label>
@@ -136,7 +186,7 @@ export default function Workspace(){
  <><div className="right-h2">目前對話的事件輸出</div><pre className="git-output terminal-output">{thread?.jobs.flatMap(j=>(events[j.id]||[]).filter(e=>['item.completed','webui.error','turn.failed'].includes(e.type)).map(e=>JSON.stringify(e.payload,null,2))).slice(-12).join('\n\n')||'尚無 Codex 執行事件。'}</pre></>}
  </div><div className="right-bottom"><span className="circle"/>僅顯示 Ubuntu 已授權專案中的資訊</div></aside>}
  </div>
- {modal&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setModal(null)}}><div className="modal" role="dialog" aria-modal="true" aria-label="視窗"><header className="modal-title"><h2>{modal==='settings'?'偏好設定':modal==='project'?'新增專案':modal==='model'?'選擇模型':modal==='effort'?'推理強度':modal==='sandbox'?'執行權限':'搜尋專案與對話'}</h2><button className="icon-btn" onClick={()=>setModal(null)} aria-label="關閉"><X size={20}/></button></header>
+ {modal&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setModal(null)}}><div className="modal" role="dialog" aria-modal="true" aria-label="視窗"><header className="modal-title"><h2>{modal==='settings'?'偏好設定':modal==='project'?'新增專案':modal==='model'?'選擇模型':modal==='effort'?'推理強度':modal==='sandbox'?'執行權限':'搜尋對話'}</h2><button className="icon-btn" onClick={()=>setModal(null)} aria-label="關閉"><X size={20}/></button></header>
  {modal==='model'||modal==='effort'||modal==='sandbox'?<div className="quick-options">{(modal==='model'?[{value:'',label:`預設 · ${codexStatus?.defaultModel||'Codex CLI'}`},...(codexStatus?.models||[]).map(m=>({value:m.id,label:m.name}))]:modal==='effort'?[{value:'',label:'預設推理'},...['low','medium','high','xhigh','max','ultra'].map(v=>({value:v,label:v}))]:[{value:'workspace-write',label:'可修改工作區 · workspace-write'},{value:'read-only',label:'唯讀 · read-only'}]).map(option=><button key={option.value} className="quick-option" onClick={()=>{if(modal==='model')setModel(option.value);else if(modal==='effort')setEffort(option.value);else setSandbox(option.value);setModal(null);}}><span>{option.label}</span><span>{(modal==='model'?model:modal==='effort'?effort:sandbox)===option.value?'✓':''}</span></button>)}</div>:modal==='settings'?<div className="settings-content"><div className="settings-section-label">執行設定</div>
  <label className="form-field"><span className="form-label">模型</span><select className="select" value={model} onChange={e=>setModel(e.target.value)}><option value="">預設 · {codexStatus?.defaultModel||'Codex CLI'}</option>{codexStatus?.models.map(option=><option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
  <label className="form-field"><span className="form-label">推理強度</span><select className="select" value={effort} onChange={e=>setEffort(e.target.value)}><option value="">預設</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra High</option><option value="max">Max</option><option value="ultra">Ultra</option></select></label>

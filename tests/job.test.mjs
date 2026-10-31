@@ -87,17 +87,7 @@ test('app server job can be cancelled while startup is pending',async()=>{
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
-test('app server cancellation interrupts a running turn',async()=>{
- const dir=mkdtempSync(join(tmpdir(),'codex-app-running-cancel-'));
- try{
-  class FakeClient extends EventEmitter {constructor(){super();this.interrupts=[];}async connect(){}async startThread(){return {thread:{id:'thread'}};}async startTurn(){return {turn:{id:'turn'}};}async interruptTurn(threadId,turnId){this.interrupts.push({threadId,turnId});}}
-  const store=createStore(join(dir,'s.db'));const p=store.addProject('sample',dir);const t=store.addThread(p.id);const job=store.addJob(t.id,'wait','key');const client=new FakeClient();const manager=new AppServerJobManager(store,client);
-  await manager.start(job.id,{dir});assert.equal(manager.cancel(job.id),true);assert.deepEqual(client.interrupts,[{threadId:'thread',turnId:'turn'}]);
-  client.emit('notification',{method:'turn/completed',params:{threadId:'thread',turn:{id:'turn',status:'interrupted',items:[]}}});assert.equal(store.getJob(job.id).status,'cancelled');store.close();
- }finally{rmSync(dir,{recursive:true,force:true});}
-});
-
-test('app server requires explicit approval for workspace and external reads',async()=>{
+test('app server always asks before explicitly requested approvals',async()=>{
  const dir=mkdtempSync(join(tmpdir(),'codex-app-approval-'));
  try{
   class FakeClient extends EventEmitter {constructor(){super();this.responses=[];}async connect(){}async startThread(){return {thread:{id:'thread'}};}async startTurn(){return {turn:{id:'turn'}};}async interruptTurn(){}async respond(id,result){this.responses.push({id,result});}}
@@ -141,6 +131,58 @@ test('app server runner releases each completed web turn client',async()=>{
   await manager.start(second.id,{dir});await new Promise(resolve=>setTimeout(resolve,20));
   assert.equal(clients.length,2);
   assert.equal(clients.every(client=>client.closed),true);
+  store.close();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('app server cancellation interrupts a running turn rather than acknowledging only',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-app-running-cancel-'));
+ try{
+  class FakeClient extends EventEmitter {
+   constructor(){super();this.interrupts=[];}
+   async connect(){}
+   async startThread(){return {thread:{id:'native-thread'}};}
+   async startTurn(){return {turn:{id:'native-turn'}};}
+   async interruptTurn(threadId,turnId){this.interrupts.push({threadId,turnId});}
+  }
+  const store=createStore(join(dir,'s.db'));
+  const p=store.addProject('sample',dir);
+  const t=store.addThread(p.id);
+  const job=store.addJob(t.id,'wait','request-key');
+  const client=new FakeClient();
+  const manager=new AppServerJobManager(store,client);
+  await manager.start(job.id,{dir});
+  assert.equal(manager.cancel(job.id),true);
+  assert.deepEqual(client.interrupts,[{threadId:'native-thread',turnId:'native-turn'}]);
+  client.emit('notification',{method:'turn/completed',params:{threadId:'native-thread',turn:{id:'native-turn',status:'interrupted',items:[]}}});
+  assert.equal(store.getJob(job.id).status,'cancelled');
+  store.close();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('file change approvals must never be implicitly accepted',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-explicit-approval-'));
+ try{
+  class FakeClient extends EventEmitter {
+   constructor(){super();this.responses=[];}
+   async connect(){}
+   async startThread(){return {thread:{id:'native-thread'}};}
+   async startTurn(){return {turn:{id:'native-turn'}};}
+   async respond(id,result){this.responses.push({id,result});}
+  }
+  const store=createStore(join(dir,'s.db'));
+  const p=store.addProject('sample',dir);
+  const t=store.addThread(p.id);
+  const job=store.addJob(t.id,'edit','approval-key');
+  const client=new FakeClient();
+  const manager=new AppServerJobManager(store,client);
+  await manager.start(job.id,{dir});
+  client.emit('request',{id:'file-approval',method:'item/fileChange/requestApproval',params:{threadId:'native-thread',itemId:'file1',reason:'Need approval'}});
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.deepEqual(client.responses,[]);
+  assert.equal(store.getEvents(job.id).some(e=>e.type==='approval.request'&&e.payload.requestId==='file-approval'),true);
+  await manager.approve(job.id,'file-approval','decline');
+  assert.deepEqual(client.responses,[{id:'file-approval',result:{decision:'decline'}}]);
   store.close();
  }finally{rmSync(dir,{recursive:true,force:true});}
 });

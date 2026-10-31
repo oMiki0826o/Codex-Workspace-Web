@@ -65,10 +65,6 @@ const normalizeItem=item=>({
   aggregated_output:item?.aggregated_output||item?.aggregatedOutput||item?.output||'',
   text:item?.text||''
 });
-const autoApprove=()=>{
- return false; // Explicit Codex approvals must remain user-controlled.
-};
-
 /**
  * Keeps the web UI's durable job/event model while using Codex's supported
  * App Server protocol.  The separate CLI JobManager above is deliberately
@@ -154,10 +150,6 @@ export class AppServerJobManager {
       const params=message?.params||{};
       if(params.threadId!==nativeThreadId)return;
       if(!['item/commandExecution/requestApproval','item/fileChange/requestApproval'].includes(message.method))return;
-      if(autoApprove(message,dir)){
-        client.respond(message.id,{decision:'accept'}).then(()=>this.#store.event(jobId,'approval.auto',{type:'approval.auto',method:message.method,itemId:params.itemId,command:params.command||'',reason:params.reason||''})).catch(error=>finish('failed',1,error instanceof Error?error.message:String(error)));
-        return;
-      }
       const requestId=String(message.id);let approvals=this.#pendingApprovals.get(jobId);if(!approvals){approvals=new Map();this.#pendingApprovals.set(jobId,approvals);}approvals.set(requestId,message);
       this.#store.event(jobId,'approval.request',{type:'approval.request',requestId,method:message.method,itemId:params.itemId,command:params.command||'',reason:params.reason||'',cwd:params.cwd||'',kind:params.kind||'command',changes:params.changes||params.fileChanges||null});
     };

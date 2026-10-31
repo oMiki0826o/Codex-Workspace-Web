@@ -32,8 +32,16 @@ test('stale running jobs become interrupted on startup',()=>{
  finally{rmSync(root,{recursive:true,force:true});}
 });
 
-test('event reads can request one extra row to detect additional history',()=>{
- const root=mkdtempSync(join(tmpdir(),'codex-db-'));
- try {const db=createStore(join(root,'state.db'));const p=db.addProject('A','/sample');const t=db.addThread(p.id);const j=db.addJob(t.id,'prompt','key');db.event(j.id,'one',{});db.event(j.id,'two',{});db.event(j.id,'three',{});assert.deepEqual(db.getEvents(j.id,0,3).map(event=>event.type),['one','two','three']);assert.deepEqual(db.getEvents(j.id,0,2).map(event=>event.type),['one','two']);db.close();}
- finally{rmSync(root,{recursive:true,force:true});}
+test('cursor history reads accept an extra row to detect more results',()=>{
+ const root=mkdtempSync(join(tmpdir(),'codex-db-page-'));
+ try{
+  const store=createStore(join(root,'state.db'));
+  const p=store.addProject('Sample','/example');
+  const t=store.addThread(p.id);
+  const job=store.addJob(t.id,'page','page-key');
+  for(let i=0;i<5;i++)store.event(job.id,'part',{i});
+  assert.equal(store.getEvents(job.id,0,3).length,3);
+  assert.deepEqual(store.getEvents(job.id,3,3).map(e=>e.payload.i),[3,4]);
+  store.close();
+ }finally{rmSync(root,{recursive:true,force:true});}
 });
