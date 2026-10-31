@@ -87,6 +87,16 @@ test('app server job can be cancelled while startup is pending',async()=>{
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
+test('app server cancellation interrupts a running turn',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-app-running-cancel-'));
+ try{
+  class FakeClient extends EventEmitter {constructor(){super();this.interrupts=[];}async connect(){}async startThread(){return {thread:{id:'thread'}};}async startTurn(){return {turn:{id:'turn'}};}async interruptTurn(threadId,turnId){this.interrupts.push({threadId,turnId});}}
+  const store=createStore(join(dir,'s.db'));const p=store.addProject('sample',dir);const t=store.addThread(p.id);const job=store.addJob(t.id,'wait','key');const client=new FakeClient();const manager=new AppServerJobManager(store,client);
+  await manager.start(job.id,{dir});assert.equal(manager.cancel(job.id),true);assert.deepEqual(client.interrupts,[{threadId:'thread',turnId:'turn'}]);
+  client.emit('notification',{method:'turn/completed',params:{threadId:'thread',turn:{id:'turn',status:'interrupted',items:[]}}});assert.equal(store.getJob(job.id).status,'cancelled');store.close();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
 test('app server requires explicit approval for workspace and external reads',async()=>{
  const dir=mkdtempSync(join(tmpdir(),'codex-app-approval-'));
  try{

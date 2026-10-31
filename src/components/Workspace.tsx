@@ -1,6 +1,6 @@
 'use client';
 import React, {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import { Plus, FolderClosed, PanelLeft, PanelRight, Settings2, Search, Moon, Sun, Bot, CircleCheck, CircleAlert, LoaderCircle, Send, Square, ChevronRight, ChevronDown, GitBranch, FileCode2, TerminalSquare, X, LockKeyhole, SlidersHorizontal, ShieldCheck, RefreshCw, FolderGit2, Command, Code2 } from 'lucide-react';
+import { Plus, FolderClosed, PanelLeft, PanelRight, Settings2, Search, Moon, Sun, Bot, CircleCheck, CircleAlert, AlertCircle, LoaderCircle, Send, Square, ChevronRight, ChevronDown, GitBranch, FileCode2, TerminalSquare, X, LockKeyhole, SlidersHorizontal, ShieldCheck, RefreshCw, FolderGit2, Command, Code2 } from 'lucide-react';
 import type {Project,ThreadSummary,Thread,Job,EventRecord,FileNode,NativeThread,CodexStatus} from './types';
 import MessageStream from './MessageStream';
 
@@ -33,6 +33,7 @@ export default function Workspace(){
  const [search,setSearch]=useState('');const [prompt,setPrompt]=useState('');const [sandbox,setSandbox]=useState('workspace-write');const [model,setModel]=useState('');const [effort,setEffort]=useState('');
  const [theme,setTheme]=useState(initialTheme);const [connected,setConnected]=useState(false);const [version,setVersion]=useState('');
  const [loading,setLoading]=useState(false);const [submitting,setSubmitting]=useState(false);const [error,setError]=useState('');
+ const [historyTruncated,setHistoryTruncated]=useState(false);
  const endRef=useRef<HTMLDivElement>(null);const selection=useRef(0);
  useEffect(()=>{void api<{authenticated:boolean,configured:boolean}>('/api/auth').then(x=>{setConfigured(x.configured);setAuth(x.authenticated?'ready':'login');}).catch(()=>setAuth('login'));},[]);
  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('codex-web-theme',theme)},[theme]);
@@ -40,11 +41,11 @@ export default function Workspace(){
  const notify=useCallback((message:string)=>{setError(message);window.setTimeout(()=>setError(''),6000)},[]);
  const loadThreads=useCallback(async(projectId:string)=>{const result=await api<{threads:ThreadSummary[]}>(`/api/threads?projectId=${encodeURIComponent(projectId)}`);setThreads(result.threads);return result.threads},[]);
  const loadThread=useCallback(async(id:string)=>{const token=++selection.current;setLoading(true);
- try{const data=await api<{thread:Thread}>(`/api/threads/${id}`);const all=await Promise.all(data.thread.jobs.map(async j=>{let after=0;const gathered:EventRecord[]=[];for(let page=0;page<200;page++){const res=await api<{events:EventRecord[]}>(`/api/jobs/${j.id}/history?after=${after}`).catch(()=>({events:[]}));gathered.push(...res.events);if(res.events.length<1000)break;after=res.events[res.events.length-1].id;}return [j.id,gathered] as const;}));
- if(token===selection.current){setThread(data.thread);setEvents(Object.fromEntries(all));if(data.thread.codexThreadId){const nativeData=await api<{thread:NativeThread}>(`/api/native-threads/${data.thread.codexThreadId}`).catch(()=>null);setNative(nativeData?.thread||null);}else setNative(null);}}
+ try{const data=await api<{thread:Thread}>(`/api/threads/${id}`);const all=await Promise.all(data.thread.jobs.map(async j=>{let after=0;let truncated=false;const gathered:EventRecord[]=[];for(let page=0;page<200;page++){const res=await api<{events:EventRecord[],hasMore:boolean}>(`/api/jobs/${j.id}/history?after=${after}`).catch(()=>({events:[],hasMore:false}));gathered.push(...res.events);if(!res.hasMore)break;after=res.events.at(-1)?.id||after;if(page===199)truncated=true;}return [j.id,gathered,truncated] as const;}));
+ if(token===selection.current){setThread(data.thread);setEvents(Object.fromEntries(all.map(([jobId,items])=>[jobId,items])));setHistoryTruncated(all.some(([, ,truncated])=>truncated));if(data.thread.codexThreadId){const nativeData=await api<{thread:NativeThread}>(`/api/native-threads/${data.thread.codexThreadId}`).catch(()=>null);setNative(nativeData?.thread||null);}else setNative(null);}}
  catch(e){if(token===selection.current)notify(String(e));}finally{if(token===selection.current)setLoading(false);}
  },[notify]);
- const loadProject=useCallback(async(p:Project,selectFirst=true)=>{selection.current++;setProject(p);setThread(null);setThreads([]);setEvents({});setSidebarOpen(false);
+ const loadProject=useCallback(async(p:Project,selectFirst=true)=>{selection.current++;setProject(p);setThread(null);setNative(null);setThreads([]);setEvents({});setHistoryTruncated(false);setSidebarOpen(false);
  try{const list=await loadThreads(p.id);if(selectFirst&&list[0])await loadThread(list[0].id);const inspect=await api<{files:FileNode[];status:string;diff:string}>(`/api/projects/${p.id}/inspect`).catch(()=>({files:[],status:'',diff:''}));setFiles(inspect.files);setGit({status:inspect.status,diff:inspect.diff});}catch(e){notify(String(e));}
  },[loadThreads,loadThread,notify]);
  const init=useCallback(async()=>{try{const [{projects:ps},health,status,nativeData]=await Promise.all([api<{projects:Project[]}>('/api/projects'),api<{connected:boolean;version:string}>('/api/health'),api<CodexStatus>('/api/codex/status').catch(()=>null),api<{threads:{id:string;title:string;updatedAt:string}[]}>('/api/native-threads').catch(()=>({threads:[]}))]);setProjects(ps);setConnected(health.connected);setVersion(health.version);setCodexStatus(status);setNativeThreads(nativeData.threads);
@@ -54,6 +55,12 @@ export default function Workspace(){
  useEffect(()=>{if(project)localStorage.setItem('codex-last-project',project.id);},[project]);
  useEffect(()=>{const onKey=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();setSearch('');setModal('search');}if(e.key==='Escape'){setModal(null);setSidebarOpen(false);setRightOpen(false);}};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);},[]);
  const activeJob=useMemo(()=>thread?.jobs.find(j=>j.status==='running'||j.status==='queued')||null,[thread]);
+ const sidebarThreads=useMemo(()=>{
+  const nativeById=new Map(nativeThreads.map(item=>[item.id,item]));const knownNativeIds=new Set<string>();
+  const combined:Array<{key:string;threadId:string|null;codexThreadId:string|null;title:string;updatedAt:string}>=threads.map(item=>{if(item.codexThreadId)knownNativeIds.add(item.codexThreadId);const nativeItem=item.codexThreadId?nativeById.get(item.codexThreadId):null;return {key:`web-${item.id}`,threadId:item.id,codexThreadId:item.codexThreadId,title:nativeItem?.title||item.title,updatedAt:nativeItem?.updatedAt||item.updatedAt};});
+  for(const item of nativeThreads)if(!knownNativeIds.has(item.id))combined.push({key:`native-${item.id}`,threadId:null,codexThreadId:item.id,title:item.title,updatedAt:item.updatedAt});
+  return combined.sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
+ },[threads,nativeThreads]);
  const selectedProjectId=project?.id;
  const jobIds=thread?.jobs.filter(j=>!finishStates.includes(j.status)).map(j=>j.id).join(',')||'';
  useEffect(()=>{if(!thread||!jobIds)return;
@@ -72,7 +79,7 @@ export default function Workspace(){
  useEffect(()=>endRef.current?.scrollIntoView({behavior:'smooth',block:'end'}),[thread?.jobs.length,events]);
  async function login(e:React.FormEvent){e.preventDefault();setLoginBusy(true);try{await post('/api/auth',{password});setPassword('');setAuth('ready');}catch(e){notify(e instanceof Error?e.message:'登入失敗');}finally{setLoginBusy(false);}}
  async function addProject(e:React.FormEvent){e.preventDefault();try{const result=await post('/api/projects',{name:projectName,path});const newP=result.project as Project;setProjects(s=>[newP,...s.filter(p=>p.id!==newP.id)]);setPath('');setProjectName('');setModal(null);await loadProject(newP,false);}catch(e){notify(e instanceof Error?e.message:'新增失敗');}}
- async function newThread(){if(!project){setModal('project');return;}try{const data=await post('/api/threads',{projectId:project.id});const t=data.thread as Thread;setThreads(x=>[{id:t.id,projectId:t.projectId,title:t.title,updatedAt:t.updatedAt,codexThreadId:null},...x]);setThread(t);setEvents({});setSidebarOpen(false);setPrompt('');}catch(e){notify(String(e));}}
+ async function newThread(){if(!project){setModal('project');return;}try{selection.current++;const data=await post('/api/threads',{projectId:project.id});const t=data.thread as Thread;setThreads(x=>[{id:t.id,projectId:t.projectId,title:t.title,updatedAt:t.updatedAt,codexThreadId:null},...x]);setThread(t);setNative(null);setEvents({});setHistoryTruncated(false);setSidebarOpen(false);setPrompt('');}catch(e){notify(String(e));}}
  async function selectNative(codexThreadId:string){if(!project)return;try{const data=await post('/api/threads',{projectId:project.id,codexThreadId});const current=data.thread as Thread;await loadThreads(project.id);await loadThread(current.id);setSidebarOpen(false);}catch(e){notify(e instanceof Error?e.message:'無法開啟原生對話');}}
  async function submit(){const content=prompt.trim();if(!project||!content||submitting||activeJob)return;
  setSubmitting(true);try{
@@ -102,9 +109,9 @@ export default function Workspace(){
   <button className="new-btn" onClick={()=>void newThread()}><Plus size={18}/>新增對話</button>
   <nav className="side-nav"><button className="nav-item active" onClick={()=>setSidebarOpen(false)}><Command size={17}/>工作區</button><button className="nav-item" onClick={()=>setModal('settings')}><Settings2 size={17}/>設定</button></nav>
   <div className="workspace-path"><FolderGit2 size={15}/><span>{project?.path||'正在載入工作區…'}</span></div>
-  <div className="sidebar-conversations"><div className="section"><div className="section-heading"><span>對話</span><span>{threads.length}</span></div>
-   {nativeThreads.map(t=><button className={`thread ${thread?.codexThreadId===t.id?'selected':''}`} key={t.id} onClick={()=>void selectNative(t.id)}><Code2 size={16}/><span className="thread-label">{t.title}</span></button>)}
-   {!threads.length&&<div className="empty-side">尚無對話紀錄</div>}
+  <div className="sidebar-conversations"><div className="section"><div className="section-heading"><span>對話</span><span>{sidebarThreads.length}</span></div>
+   {sidebarThreads.map(item=><button className={`thread ${thread?.id===item.threadId||thread?.codexThreadId===item.codexThreadId?'selected':''}`} key={item.key} onClick={()=>item.threadId?void selectThread(item.threadId):void selectNative(item.codexThreadId!)}><Code2 size={16}/><span className="thread-label">{item.title}</span></button>)}
+   {!sidebarThreads.length&&<div className="empty-side">尚無對話紀錄</div>}
   </div>
   </div><div className="sidebar-footer"><span className={`status-dot ${connected?'ok':''}`}/><strong>Codex</strong><span>{connected?'已連接':'無法連接'}</span><span className="version">LOCAL</span></div>
  </aside>
@@ -115,7 +122,7 @@ export default function Workspace(){
   </div>
   <div className="chat-scroll"><div className="chat-content">
   {!project?<div className="welcome-screen"><div className="welcome-icon"><Bot size={31}/></div><h1>正在連接固定工作區</h1><p>確認 DEFAULT_PROJECT_PATH 指向這個 Codex 工作區即可開始使用。</p></div>:
-   thread?<>{native?<><div className="native-messages">{native.items.map(item=><div className={`native-message ${item.role}`} key={item.id}><strong>{item.role==='user'?'你':'Codex'}</strong><p>{item.text}</p></div>)}</div>{native.usage&&<div className="token-usage">本對話累計 · 輸入 {native.usage.input_tokens||0} · 輸出 {native.usage.output_tokens||0} · 總計 {native.usage.total_tokens||0} tokens</div>}</>:null}{thread.jobs.length>0&&<MessageStream jobs={thread.jobs} events={events} onApproval={approve}/>}<div ref={endRef}/></>:<div className="empty-chat"><div className="empty-mark"><Bot size={32}/></div><h2>從一個指令開始</h2><p>Codex 將在 <strong>{project.name}</strong> 專案目錄中工作。</p><div className="example-prompts"><span onClick={()=>setPrompt('檢查專案架構並提出改善建議')}>檢查專案架構</span><span onClick={()=>setPrompt('執行現有測試並整理問題')}>執行測試</span><span onClick={()=>setPrompt('閱讀 README 並說明專案如何運作')}>瞭解專案</span></div></div>}
+   thread?<>{historyTruncated&&<div className="error-box"><AlertCircle size={16}/>此對話的事件過多, 目前僅載入前 200,000 筆事件。</div>}{native?<><div className="native-messages">{native.items.map(item=><div className={`native-message ${item.role}`} key={item.id}><strong>{item.role==='user'?'你':'Codex'}</strong><p>{item.text}</p></div>)}</div>{native.usage&&<div className="token-usage">本對話累計 · 輸入 {native.usage.input_tokens||0} · 輸出 {native.usage.output_tokens||0} · 總計 {native.usage.total_tokens||0} tokens</div>}</>:null}{thread.jobs.length>0&&<MessageStream jobs={thread.jobs} events={events} onApproval={approve}/>}<div ref={endRef}/></>:<div className="empty-chat"><div className="empty-mark"><Bot size={32}/></div><h2>從一個指令開始</h2><p>Codex 將在 <strong>{project.name}</strong> 專案目錄中工作。</p><div className="example-prompts"><span onClick={()=>setPrompt('檢查專案架構並提出改善建議')}>檢查專案架構</span><span onClick={()=>setPrompt('執行現有測試並整理問題')}>執行測試</span><span onClick={()=>setPrompt('閱讀 README 並說明專案如何運作')}>瞭解專案</span></div></div>}
    </div></div>
   <div className="composer-wrap"><form className="composer" onSubmit={e=>{e.preventDefault();void (activeJob?stop():submit());}}>
    <label htmlFor="prompt" className="screen-reader-only">傳送訊息給 Codex</label>

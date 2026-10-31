@@ -32,8 +32,6 @@ export class AppServerClient extends EventEmitter {
  async startThread({cwd,model='',sandbox='workspace-write'}){return this.request('thread/start',{cwd,model:model||null,sandbox});}
  async listModels(){return this.request('model/list',{});}
  async readRateLimits(){return this.request('account/rateLimits/read',{});}
- async listModels(){return this.request('model/list',{});}
- async readRateLimits(){return this.request('account/rateLimits/read',{});}
  async resumeThread(threadId,{cwd,sandbox}={}){return this.request('thread/resume',{threadId,...(cwd?{cwd}:{}),...(sandbox?{sandbox}:{})});}
  async unsubscribeThread(threadId){return this.request('thread/unsubscribe',{threadId});}
  async startTurn({threadId,prompt,model='',effort='',sandbox='workspace-write'}){return this.request('turn/start',{threadId,input:[{type:'text',text:prompt}],model:model||null,effort:effort||null,sandboxPolicy:{type:sandbox==='read-only'?'readOnly':'workspaceWrite',...(sandbox==='read-only'?{}:{writableRoots:[],networkAccess:false,excludeTmpdirEnvVar:false,excludeSlashTmp:false})}});}

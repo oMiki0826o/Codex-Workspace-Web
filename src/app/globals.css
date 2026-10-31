@@ -659,7 +659,6 @@ svg {
  .composer-wrap { padding:12px 14px 10px; }
  .composer { border-radius:20px; }
  .chip { font-size:11px; padding:7px 8px; }
- .chip:nth-of-type(3) { display:none; }
  .right { position:fixed; inset:58px 0 0 0; z-index:30; width:auto; }
 }
 .assistant-intro {
@@ -2122,9 +2121,6 @@ body {
   }
 }
 @media (max-width:370px) {
-  .composer .chip:nth-of-type(3) {
-    display: none;
-  }
   .brand {
     font-size: 12px;
   }

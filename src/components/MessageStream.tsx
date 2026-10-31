@@ -29,14 +29,14 @@ export default function MessageStream({jobs,events,onApproval}:{jobs:Job[];event
  if(!jobs.length)return <div className="empty-chat"><div className="empty-mark"><Bot size={31}/></div><h2>今天要處理什麼？</h2><p>開始一段對話，Codex 將直接在 Ubuntu 伺服器的專案目錄中工作。</p><div className="example-prompts">試試看：<span>檢查專案架構</span><span>執行測試並修復錯誤</span><span>整理 README</span></div></div>;
  return <div className="message-stack">
  {jobs.map(job=>{
-   const seen=new Map<string,EventRecord>();let answer='';let failure='';
+   const seen=new Map<string,EventRecord>();const agentText=new Map<string,string>();let answer='';let failure='';
    for(const e of events[job.id]||[]){const p=e.payload;const item=obj(p.item);
      if(e.type==='item.started'||e.type==='item.updated'||e.type==='item.completed'){
-       const ident=textOf(item.id);if(ident)seen.set(ident,e);
+       const ident=textOf(item.id);if(ident){seen.set(ident,e);if(item.type==='agent_message'){const text=textOf(item.text);agentText.set(ident,e.type==='item.updated'?(agentText.get(ident)||'')+text:text||agentText.get(ident)||'');}}
      }
      if(e.type==='webui.error'||e.type==='turn.failed'||e.type==='error')failure=textOf(p.message)||textOf(obj(p.error).message)||'Codex 回報錯誤';
    }
-   const tools=[];const resolvedApprovals=new Set((events[job.id]||[]).filter(e=>e.type==='approval.resolved').map(e=>textOf(e.payload.requestId)));const approvals=(events[job.id]||[]).filter(e=>e.type==='approval.request'&&!resolvedApprovals.has(textOf(e.payload.requestId)));for(const e of seen.values()){const item=obj(e.payload.item);if(item.type==='agent_message')answer=textOf(item.text)||answer;else if(item.type==='reasoning'){/* avoid displaying internal reasoning */}else tools.push(e);}
+   const tools=[];const resolvedApprovals=new Set((events[job.id]||[]).filter(e=>e.type==='approval.resolved'||e.type==='appserver.serverRequest.resolved').map(e=>textOf(e.payload.requestId)||textOf(e.payload.id)));const approvals=(events[job.id]||[]).filter(e=>e.type==='approval.request'&&!resolvedApprovals.has(textOf(e.payload.requestId)));for(const e of seen.values()){const item=obj(e.payload.item);if(item.type==='agent_message')answer=agentText.get(textOf(item.id))||textOf(item.text)||answer;else if(item.type==='reasoning'){/* avoid displaying internal reasoning */}else tools.push(e);}
    return <div className="conversation-turn" key={job.id}>
      <div className="msg"><div className="msg-avatar user"><UserRound size={17}/></div><div className="msg-area"><div className="msg-author">你 <span className="msg-time">{new Date(job.createdAt).toLocaleString('zh-TW',{hour:'2-digit',minute:'2-digit'})}</span></div><div className="user-bubble">{job.prompt}</div></div></div>
      <div className="msg"><div className="msg-avatar assistant-avatar"><Bot size={18}/></div><div className="msg-area"><div className="msg-author">Codex <StatusBadge status={job.status}/></div>

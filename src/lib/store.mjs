@@ -53,7 +53,7 @@ export function createStore(filename){
     finishJob:(id,status,code=null)=>execute('UPDATE jobs SET status=?,exit_code=?,finished_at=? WHERE id=?',status,code,now(),id),
     event(jobId,type,payload){const text=JSON.stringify(payload);const safe=text.length>100000?JSON.stringify({type:'webui.warning',message:'事件內容超出儲存上限'}):text;
       const result=execute('INSERT INTO events(job_id,type,payload,created_at) VALUES(?,?,?,?)',jobId,type,safe,now());return {id:Number(result.lastInsertRowid),jobId,type,payload:JSON.parse(safe)};},
-    getEvents:(jobId,cursor=0)=>all('SELECT * FROM events WHERE job_id=? AND id>? ORDER BY id ASC LIMIT 1000',jobId,cursor).map(r=>({id:r.id,jobId:r.job_id,type:r.type,payload:JSON.parse(r.payload)})),
+    getEvents:(jobId,cursor=0,limit=1000)=>all('SELECT * FROM events WHERE job_id=? AND id>? ORDER BY id ASC LIMIT ?',jobId,cursor,limit).map(r=>({id:r.id,jobId:r.job_id,type:r.type,payload:JSON.parse(r.payload)})),
     addSession:(hash,expires)=>execute('INSERT INTO sessions VALUES(?,?)',hash,expires),
     hasSession:(hash)=>Boolean(q('SELECT token_hash FROM sessions WHERE token_hash=? AND expires_at>?',hash,Date.now())),
     removeSession:(hash)=>execute('DELETE FROM sessions WHERE token_hash=?',hash)

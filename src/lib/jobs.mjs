@@ -170,6 +170,7 @@ export class AppServerJobManager {
       turnId=turn.turn?.id||turn.id||'';
       if(!turnId)throw new Error('Codex App Server 沒有回傳回合識別碼');
       this.#store.setJobRunning(jobId,null);
+      this.#starting.delete(jobId);
       this.#running.set(jobId,{threadId:nativeThreadId,turnId,cancelled:false,finish});
       if(starting.cancelled){await client.interruptTurn(nativeThreadId,turnId);finish('cancelled');return;}
       this.#store.event(jobId,'turn.started',{type:'turn.started',thread_id:nativeThreadId,turn_id:turnId});

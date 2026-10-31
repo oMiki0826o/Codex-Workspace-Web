@@ -31,3 +31,9 @@ test('stale running jobs become interrupted on startup',()=>{
  try {let db=createStore(join(root,'state.db'));let p=db.addProject('A','/sample');let t=db.addThread(p.id);let j=db.addJob(t.id,'prompt','key');db.setJobRunning(j.id,10);db.close();db=createStore(join(root,'state.db'));assert.equal(db.getJob(j.id).status,'interrupted');db.close();}
  finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test('event reads can request one extra row to detect additional history',()=>{
+ const root=mkdtempSync(join(tmpdir(),'codex-db-'));
+ try {const db=createStore(join(root,'state.db'));const p=db.addProject('A','/sample');const t=db.addThread(p.id);const j=db.addJob(t.id,'prompt','key');db.event(j.id,'one',{});db.event(j.id,'two',{});db.event(j.id,'three',{});assert.deepEqual(db.getEvents(j.id,0,3).map(event=>event.type),['one','two','three']);assert.deepEqual(db.getEvents(j.id,0,2).map(event=>event.type),['one','two']);db.close();}
+ finally{rmSync(root,{recursive:true,force:true});}
+});

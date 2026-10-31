@@ -13,8 +13,8 @@ export function listWorkspaceSessions({workspace,sessionsDir}){
  return files(sessionsDir).map(path=>sessionFor(path,workspace)).filter(Boolean).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)||a.id.localeCompare(b.id));
 }
 
-export function readNativeSession({sessionId,workspace,sessionsDir}){
- const session=listWorkspaceSessions({workspace,sessionsDir}).find(candidate=>candidate.id===sessionId);if(!session)return null;
+export function readNativeSession({sessionId,workspace,sessionsDir,session=null}){
+ session=session||listWorkspaceSessions({workspace,sessionsDir}).find(candidate=>candidate.id===sessionId);if(!session)return null;
  const rows=records(session.path);const usage=rows.filter(row=>row.type==='event_msg'&&row.payload?.type==='token_count'&&row.payload?.info?.total_token_usage).at(-1)?.payload?.info?.total_token_usage||rows.filter(row=>row.type==='token_usage_record').at(-1)?.payload?.thread_token_usage||null;
  return {...session,items:rows.map(item).filter(Boolean),usage};
 }
