@@ -87,14 +87,14 @@ test('app server job can be cancelled while startup is pending',async()=>{
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
-test('app server auto-approves workspace reads and asks before external reads',async()=>{
+test('app server requires explicit approval for workspace and external reads',async()=>{
  const dir=mkdtempSync(join(tmpdir(),'codex-app-approval-'));
  try{
   class FakeClient extends EventEmitter {constructor(){super();this.responses=[];}async connect(){}async startThread(){return {thread:{id:'thread'}};}async startTurn(){return {turn:{id:'turn'}};}async interruptTurn(){}async respond(id,result){this.responses.push({id,result});}}
   const store=createStore(join(dir,'s.db'));const p=store.addProject('sample',dir);const t=store.addThread(p.id);const job=store.addJob(t.id,'check','key');const client=new FakeClient();const manager=new AppServerJobManager(store,client);
   await manager.start(job.id,{dir});
   client.emit('request',{id:'inside',method:'item/commandExecution/requestApproval',params:{threadId:'thread',itemId:'one',commandActions:[{type:'read',path:join(dir,'README.md')}]}});
-  await new Promise(resolve=>setTimeout(resolve,0));assert.deepEqual(client.responses,[{id:'inside',result:{decision:'accept'}}]);
+  await new Promise(resolve=>setTimeout(resolve,0));assert.deepEqual(client.responses,[]);assert.equal(store.getEvents(job.id).some(e=>e.type==='approval.request'&&e.payload.requestId==='inside'),true);
   client.emit('request',{id:'outside',method:'item/commandExecution/requestApproval',params:{threadId:'thread',itemId:'two',command:'cat /etc/passwd',commandActions:[{type:'read',path:'/etc/passwd'}]}});
   assert.equal(store.getEvents(job.id).some(e=>e.type==='approval.request'),true);
   await manager.approve(job.id,'outside','decline');assert.deepEqual(client.responses.at(-1),{id:'outside',result:{decision:'decline'}});store.close();

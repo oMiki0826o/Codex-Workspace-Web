@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { isAbsolute, relative } from 'node:path';
 import { buildCodexArgs, JsonlDecoder } from './codex.mjs';
 import { AppServerClient } from './app-server-client.mjs';
 
@@ -66,14 +65,8 @@ const normalizeItem=item=>({
   aggregated_output:item?.aggregated_output||item?.aggregatedOutput||item?.output||'',
   text:item?.text||''
 });
-const inside=(root,path)=>{if(typeof path!=='string'||!isAbsolute(path))return false;const rel=relative(root,path);return rel===''||(!rel.startsWith('..')&&!isAbsolute(rel));};
-const trustedReadRoots=['/home/allen/.codex/skills','/home/allen/.codex/plugins/cache'];
-const autoApprove=(request,workspace)=>{
- const p=request.params||{};
- if(request.method==='item/fileChange/requestApproval')return true;
- if(request.method!=='item/commandExecution/requestApproval'||p.kind==='writeStdin')return false;
- const actions=Array.isArray(p.commandActions)?p.commandActions:[];
- return actions.length>0&&actions.every(action=>inside(workspace,action.path)||(action.type==='read'&&trustedReadRoots.some(root=>inside(root,action.path))));
+const autoApprove=()=>{
+ return false; // Explicit Codex approvals must remain user-controlled.
 };
 
 /**
@@ -111,7 +104,7 @@ export class AppServerJobManager {
     await startup(()=>client.connect());
     if(finishBeforeTurn())return;
     let nativeThreadId=thread.codexThreadId;
-    if(nativeThreadId)await startup(()=>client.resumeThread(nativeThreadId));
+    if(nativeThreadId)await startup(()=>client.resumeThread(nativeThreadId,{cwd:dir,sandbox}));
     else {
       const started=await startup(()=>client.startThread({cwd:dir,sandbox,model}));
       nativeThreadId=started.thread?.id;
@@ -166,14 +159,14 @@ export class AppServerJobManager {
         return;
       }
       const requestId=String(message.id);let approvals=this.#pendingApprovals.get(jobId);if(!approvals){approvals=new Map();this.#pendingApprovals.set(jobId,approvals);}approvals.set(requestId,message);
-      this.#store.event(jobId,'approval.request',{type:'approval.request',requestId,method:message.method,itemId:params.itemId,command:params.command||'',reason:params.reason||'',cwd:params.cwd||'',kind:params.kind||'command'});
+      this.#store.event(jobId,'approval.request',{type:'approval.request',requestId,method:message.method,itemId:params.itemId,command:params.command||'',reason:params.reason||'',cwd:params.cwd||'',kind:params.kind||'command',changes:params.changes||params.fileChanges||null});
     };
     onExit=()=>{if(this.#running.has(jobId))finish('interrupted',1,'Codex App Server 已停止，工作已中斷');};
     client.on('notification',onNotification);
     client.on('request',onRequest);
     client.on('exit',onExit);
     try {
-      const turn=await client.startTurn({threadId:nativeThreadId,prompt:job.prompt,model,effort});
+      const turn=await client.startTurn({threadId:nativeThreadId,prompt:job.prompt,model,effort,sandbox});
       turnId=turn.turn?.id||turn.id||'';
       if(!turnId)throw new Error('Codex App Server 沒有回傳回合識別碼');
       this.#store.setJobRunning(jobId,null);

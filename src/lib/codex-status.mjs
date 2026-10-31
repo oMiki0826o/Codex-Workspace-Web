@@ -1,7 +1,9 @@
 import { AppServerClient } from './app-server-client.mjs';
 import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 const efforts=['low','medium','high','xhigh','max','ultra'];
-const config=()=>{try{return readFileSync('/home/allen/.codex/config.toml','utf8');}catch{return '';}};
+const config=()=>{try{return readFileSync(join(process.env.CODEX_HOME||join(homedir(),'.codex'),'config.toml'),'utf8');}catch{return '';}};
 const value=name=>config().match(new RegExp(`^${name}\\s*=\\s*"([^"]+)"`,'m'))?.[1]||'';
 export async function getCodexStatus(client=new AppServerClient()){
  let rawModels={};let rawUsage={};try{await client.connect();try{rawModels=await client.listModels();}catch{}try{rawUsage=await client.readRateLimits();}catch{}}finally{client.close();}

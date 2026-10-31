@@ -19,6 +19,32 @@
   --radius: 12px;
   color-scheme: dark;
 }
+
+/* Revised mobile layout and explicit approval preview. */
+html,body{width:100%;max-width:100%;overflow-x:hidden}
+body.drawer-active{overflow:hidden;touch-action:none}
+.app,.body,.main,.chat-scroll,.chat-content,.message-stack,.conversation-turn,.msg,.msg-area,.markdown-body,.native-messages,.native-message{min-width:0;max-width:100%}
+.markdown-body,.native-message,.user-bubble,.msg-area{overflow-wrap:anywhere;word-break:break-word}
+.sidebar-conversations{min-height:0;flex:1;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding-right:3px}
+.quick-options{padding:10px;max-height:min(65dvh,580px);overflow-y:auto;overscroll-behavior:contain}
+.quick-option{display:flex;align-items:center;justify-content:space-between;width:100%;padding:16px 17px;background:transparent;border:0;border-radius:10px;color:var(--text);text-align:left;font-size:15px;gap:12px}
+.quick-option:hover,.quick-option:active{background:var(--surface2)}
+.approval-changes{max-width:100%;overflow-x:auto;padding:12px;border-radius:10px;background:var(--surface2);font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:700px){
+ .app{height:100dvh;min-height:0;width:100%;overflow:hidden}
+ .body,.main{min-height:0;overflow:hidden}
+ .chat-scroll{min-height:0;overflow-x:hidden;overscroll-behavior:contain}
+ .chat-content{padding-left:16px!important;padding-right:16px!important}
+ .markdown-body,.native-message{font-size:15px!important;line-height:1.65}
+ .composer-wrap{flex-shrink:0;padding:10px 12px max(12px,env(safe-area-inset-bottom))}
+ .composer{max-width:100%;border-radius:22px}
+ .composer-actions{padding-right:0;flex-wrap:wrap;gap:7px}
+ .composer .chip{max-width:44%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .sidebar{top:0!important;bottom:0!important;padding-top:max(66px,env(safe-area-inset-top))!important;max-height:100dvh}
+ .scrim.active{inset:0!important}
+ .modal{max-height:85dvh;overflow-y:auto}
+ .right.open{max-width:100vw}
+}
 html[data-theme="light"] {
   --bg: #f5f6f8;
   --header: #ffffff;
