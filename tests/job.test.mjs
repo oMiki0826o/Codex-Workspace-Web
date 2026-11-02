@@ -207,3 +207,31 @@ test('app server receives turn plan updates without optional threadId',async()=>
   store.close();
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test('permissions request never grants without an explicit per-turn decision',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-permissions-'));
+ try{
+  class FakeClient extends EventEmitter{constructor(){super();this.responses=[];}async connect(){}async startThread(){return {thread:{id:'thread'}};}async startTurn(){return {turn:{id:'turn'}};}async respond(id,result){this.responses.push({id,result});}}
+  const store=createStore(join(dir,'db')),p=store.addProject('sample',dir),t=store.addThread(p.id),j=store.addJob(t.id,'inspect','req');
+  const client=new FakeClient(),manager=new AppServerJobManager(store,client);await manager.start(j.id,{dir});
+  client.emit('request',{id:'p1',method:'item/permissions/requestApproval',params:{threadId:'thread',turnId:'turn',itemId:'p',permissions:{fileSystem:{write:['/tmp/one']}}}});
+  assert.deepEqual(client.responses,[]);await manager.approve(j.id,'p1','decline');
+  assert.deepEqual(client.responses[0].result,{scope:'turn',permissions:{}});
+  client.emit('request',{id:'p2',method:'item/permissions/requestApproval',params:{threadId:'thread',turnId:'turn',itemId:'p2',permissions:{fileSystem:{write:['/tmp/one']}}}});
+  await manager.approve(j.id,'p2','accept');
+  assert.deepEqual(client.responses[1].result,{scope:'turn',permissions:{fileSystem:{write:['/tmp/one']}}});
+  store.close();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+test('file approval preview associates pending changes from started item',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-diff-'));
+ try{
+  class FakeClient extends EventEmitter{async connect(){}async startThread(){return {thread:{id:'thread'}};}async startTurn(){return {turn:{id:'turn'}};}}
+  const store=createStore(join(dir,'db')),p=store.addProject('sample',dir),t=store.addThread(p.id),j=store.addJob(t.id,'edit','req');
+  const client=new FakeClient(),manager=new AppServerJobManager(store,client);await manager.start(j.id,{dir});
+  client.emit('notification',{method:'item/started',params:{threadId:'thread',turnId:'turn',item:{id:'f',type:'fileChange',changes:[{path:'README.md'}]}}});
+  client.emit('request',{id:'a',method:'item/fileChange/requestApproval',params:{threadId:'thread',turnId:'turn',itemId:'f'}});
+  assert.deepEqual(store.getEvents(j.id).find(x=>x.type==='approval.request').payload.changes,[{path:'README.md'}]);
+  store.close();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

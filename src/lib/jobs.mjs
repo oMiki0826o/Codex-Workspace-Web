@@ -110,6 +110,7 @@ export class AppServerJobManager {
     }
     if(finishBeforeTurn())return;
     let settled=false;let turnId='';let onNotification;let onRequest;let onExit;
+    const proposedFileChanges=new Map();
     const finish=(status,code=0,message='')=>{
       if(settled)return;settled=true;
       if(message)this.#store.event(jobId,'webui.error',{type:'webui.error',message});
@@ -133,6 +134,9 @@ export class AppServerJobManager {
       const eventType=message.method||'appserver.notification';
       if(eventType==='item/started'||eventType==='item/updated'||eventType==='item/completed'){
         const phase=eventType.split('/')[1];
+        if(params.item?.type==='fileChange'||params.item?.type==='file_change'){
+          if(params.item.id)proposedFileChanges.set(params.item.id,params.item.changes||null);
+        }
         this.#store.event(jobId,`item.${phase}`,{type:`item.${phase}`,item:normalizeItem(params.item||{})});
         return;
       }
@@ -168,9 +172,11 @@ export class AppServerJobManager {
     onRequest=message=>{
       const params=message?.params||{};
       if(params.threadId!==nativeThreadId)return;
-      if(!['item/commandExecution/requestApproval','item/fileChange/requestApproval'].includes(message.method))return;
+      if(!['item/commandExecution/requestApproval','item/fileChange/requestApproval','item/permissions/requestApproval'].includes(message.method)){
+        this.#store.event(jobId,'webui.warning',{type:'webui.warning',message:`Codex 要求尚未支援的互動：${message.method}。不會自動批准。`});return;
+      }
       const requestId=String(message.id);let approvals=this.#pendingApprovals.get(jobId);if(!approvals){approvals=new Map();this.#pendingApprovals.set(jobId,approvals);}approvals.set(requestId,message);
-      this.#store.event(jobId,'approval.request',{type:'approval.request',requestId,method:message.method,itemId:params.itemId,command:params.command||'',reason:params.reason||'',cwd:params.cwd||'',kind:params.kind||'command',changes:params.changes||params.fileChanges||null});
+      this.#store.event(jobId,'approval.request',{type:'approval.request',requestId,method:message.method,itemId:params.itemId,command:params.command||'',reason:params.reason||'',cwd:params.cwd||'',kind:message.method,changes:params.changes||params.fileChanges||proposedFileChanges.get(params.itemId)||null,permissions:params.permissions||null,networkApprovalContext:params.networkApprovalContext||null,availableDecisions:params.availableDecisions||null});
     };
     onExit=()=>{if(this.#running.has(jobId))finish('interrupted',1,'Codex App Server 已停止，工作已中斷');};
     client.on('notification',onNotification);
@@ -202,7 +208,10 @@ export class AppServerJobManager {
     if(!['accept','acceptForSession','decline','cancel'].includes(decision))throw new Error('無效的批准選項');
     const request=this.#pendingApprovals.get(jobId)?.get(requestId);if(!request)throw new Error('批准請求已失效，請重新整理對話');
     const client=this.#clients.get(jobId);if(!client)throw new Error('Codex 連線已關閉，請重新整理對話');
-    await client.respond(request.id,{decision});
+    const response=request.method==='item/permissions/requestApproval'
+      ?{scope:decision==='acceptForSession'?'session':'turn',permissions:decision==='accept'||decision==='acceptForSession'?(request.params?.permissions||{}):{}}
+      :{decision};
+    await client.respond(request.id,response);
     this.#pendingApprovals.get(jobId)?.delete(requestId);
     this.#store.event(jobId,'approval.resolved',{type:'approval.resolved',requestId,decision});
   }
