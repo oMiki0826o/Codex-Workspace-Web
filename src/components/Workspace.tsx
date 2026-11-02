@@ -35,11 +35,13 @@ export default function Workspace(){
  const [files,setFiles]=useState<FileNode[]>([]);const [git,setGit]=useState({status:'',diff:''});
  const [rightTab,setRightTab]=useState<'files'|'changes'|'output'>('files');
  const [sidebarOpen,setSidebarOpen]=useState(false);const [rightOpen,setRightOpen]=useState(false);
- const [modal,setModal]=useState<'settings'|'project'|'search'|'model'|'effort'|'sandbox'|null>(null);const [path,setPath]=useState('');const [projectName,setProjectName]=useState('');
+ const [modal,setModal]=useState<'settings'|'project'|'search'|'model'|'effort'|'sandbox'|'skills'|'mcp'|null>(null);const [path,setPath]=useState('');const [projectName,setProjectName]=useState('');
  const [search,setSearch]=useState('');const [prompt,setPrompt]=useState('');const [sandbox,setSandbox]=useState('workspace-write');const [model,setModel]=useState('');const [effort,setEffort]=useState('');
  const [connected,setConnected]=useState(false);const [version,setVersion]=useState('');
  const [loading,setLoading]=useState(false);const [submitting,setSubmitting]=useState(false);const [error,setError]=useState('');
  const [historyTruncated,setHistoryTruncated]=useState(false);
+ const [skillData,setSkillData]=useState<{supported:boolean;items:unknown[];message?:string}|null>(null);
+ const [mcpData,setMcpData]=useState<{supported:boolean;items:unknown[];message?:string}|null>(null);
  const viewportDebug=useSyncExternalStore(subscribeDebugFlag,getDebugFlag,()=>false);
  const chatScrollRef=useRef<HTMLDivElement>(null);
  const closeToBottom=useRef(true);
@@ -84,8 +86,10 @@ export default function Workspace(){
      baselineHeight:baseline,focused,scale:viewport?.scale||1,offsetTop:viewport?.offsetTop||0});
     root.dataset.keyboardOpen=String(state.keyboardOpen);
     root.style.setProperty('--chat-visible-height',state.height);
+    root.style.setProperty('--v2-height',state.height);
     root.style.setProperty('--chat-viewport-top',state.top);
     root.style.setProperty('--chat-safe-bottom',state.keyboardOpen?'0px':'env(safe-area-inset-bottom,0px)');
+    root.style.setProperty('--v2-bottom',state.keyboardOpen?'0px':'env(safe-area-inset-bottom,0px)');
     if(new URLSearchParams(location.search).has('viewportDebug')){
      const app=document.querySelector('.app')?.getBoundingClientRect();
      const composerRect=document.querySelector('.composer-wrap')?.getBoundingClientRect();
@@ -120,10 +124,25 @@ export default function Workspace(){
    window.removeEventListener('pageshow',onShow);
    document.removeEventListener('focusin',resync);document.removeEventListener('focusout',resync);
    delete root.dataset.keyboardOpen;
-   root.style.removeProperty('--chat-visible-height');root.style.removeProperty('--chat-safe-bottom');
+   root.style.removeProperty('--chat-visible-height');root.style.removeProperty('--chat-safe-bottom');root.style.removeProperty('--v2-height');root.style.removeProperty('--v2-bottom');
    root.style.removeProperty('--chat-viewport-top');
   };
  },[]);
+ useEffect(()=>{
+   if(modal!=='skills'&&modal!=='mcp')return;
+   let active=true;
+   const kind=modal;
+   void api<{supported:boolean;items:unknown[];message?:string}>(`/api/codex/${kind}`).then(data=>{
+    if(!active)return;
+    if(kind==='skills')setSkillData(data);
+    else setMcpData(data);
+   }).catch(()=>{
+    if(!active)return;
+    const fallback={supported:false,items:[],message:'無法向 Codex App Server 讀取資料'};
+    if(kind==='skills')setSkillData(fallback);else setMcpData(fallback);
+   });
+   return()=>{active=false;};
+ },[modal]);
  useEffect(()=>{document.body.classList.toggle('drawer-active',sidebarOpen||rightOpen||Boolean(modal));return()=>document.body.classList.remove('drawer-active');},[sidebarOpen,rightOpen,modal]);
  const notify=useCallback((message:string)=>{setError(message);window.setTimeout(()=>setError(''),6000)},[]);
  const loadThreads=useCallback(async(projectId:string)=>{const result=await api<{threads:ThreadSummary[]}>(`/api/threads?projectId=${encodeURIComponent(projectId)}`);setThreads(result.threads);return result.threads},[]);
@@ -218,7 +237,7 @@ export default function Workspace(){
  <div className="body">
  <aside className={`sidebar ${sidebarOpen?'open':''}`}>
   <button className="new-btn" onClick={()=>void newThread()}><Plus size={18}/>新增對話</button>
-  <nav className="side-nav"><button className="nav-item active" onClick={()=>setSidebarOpen(false)}><Command size={17}/>工作區</button><button className="nav-item" onClick={()=>setModal('settings')}><Settings2 size={17}/>設定</button></nav>
+  <nav className="side-nav"><button className="nav-item active" onClick={()=>setSidebarOpen(false)}><Command size={17}/>工作區</button><button className="nav-item" onClick={()=>setModal('skills')}><Code2 size={17}/>Skills</button><button className="nav-item" onClick={()=>setModal('mcp')}><TerminalSquare size={17}/>MCP</button><button className="nav-item" onClick={()=>setModal('settings')}><Settings2 size={17}/>設定</button></nav>
   <div className="workspace-path"><FolderGit2 size={15}/><span>{project?.path||'正在載入工作區…'}</span></div>
   <div className="sidebar-conversations"><div className="section"><div className="section-heading"><span>對話</span><span>{sidebarThreads.length}</span></div>
    {sidebarThreads.map(item=><button className={`thread ${thread?.id===item.threadId||thread?.codexThreadId===item.codexThreadId?'selected':''}`} key={item.key} onClick={()=>item.threadId?void selectThread(item.threadId):void selectNative(item.codexThreadId!)}><Code2 size={16}/><span className="thread-label">{item.title}</span></button>)}
@@ -247,10 +266,10 @@ export default function Workspace(){
  <><div className="right-h2">目前對話的事件輸出</div><pre className="git-output terminal-output">{thread?.jobs.flatMap(j=>(events[j.id]||[]).filter(e=>['item.completed','webui.error','turn.failed'].includes(e.type)).map(e=>JSON.stringify(e.payload,null,2))).slice(-12).join('\n\n')||'尚無 Codex 執行事件。'}</pre></>}
  </div><div className="right-bottom"><span className="circle"/>僅顯示 Ubuntu 已授權專案中的資訊</div></aside>}
  </div>
- {modal&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setModal(null)}}><div className="modal" role="dialog" aria-modal="true" aria-label="視窗"><header className="modal-title"><h2>{modal==='settings'?'偏好設定':modal==='project'?'新增專案':modal==='model'?'選擇模型':modal==='effort'?'推理強度':modal==='sandbox'?'執行權限':'搜尋對話'}</h2><button className="icon-btn" onClick={()=>setModal(null)} aria-label="關閉"><X size={20}/></button></header>
- {modal==='model'||modal==='effort'||modal==='sandbox'?<div className="quick-options">{(modal==='model'?[{value:'',label:`預設 · ${codexStatus?.defaultModel||'Codex CLI'}`},...(codexStatus?.models||[]).map(m=>({value:m.id,label:m.name}))]:modal==='effort'?[{value:'',label:'預設推理'},...['low','medium','high','xhigh','max','ultra'].map(v=>({value:v,label:v}))]:[{value:'workspace-write',label:'可修改工作區 · workspace-write'},{value:'read-only',label:'唯讀 · read-only'}]).map(option=><button key={option.value} className="quick-option" onClick={()=>{if(modal==='model')setModel(option.value);else if(modal==='effort')setEffort(option.value);else setSandbox(option.value);setModal(null);}}><span>{option.label}</span><span>{(modal==='model'?model:modal==='effort'?effort:sandbox)===option.value?'✓':''}</span></button>)}</div>:modal==='settings'?<div className="settings-content"><div className="settings-section-label">執行設定</div>
+ {modal&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setModal(null)}}><div className="modal" role="dialog" aria-modal="true" aria-label="視窗"><header className="modal-title"><h2>{modal==='settings'?'偏好設定':modal==='project'?'新增專案':modal==='model'?'選擇模型':modal==='effort'?'推理強度':modal==='sandbox'?'執行權限':modal==='skills'?'Codex Skills':modal==='mcp'?'MCP 伺服器':'搜尋對話'}</h2><button className="icon-btn" onClick={()=>setModal(null)} aria-label="關閉"><X size={20}/></button></header>
+ {modal==='model'||modal==='effort'||modal==='sandbox'?<div className="quick-options">{(modal==='model'?[{value:'',label:`預設 · ${codexStatus?.defaultModel||'Codex CLI'}`},...(codexStatus?.models||[]).map(m=>({value:m.id,label:m.name}))]:modal==='effort'?[{value:'',label:'預設推理'},...(codexStatus?.models.find(m=>m.id===(model||codexStatus?.defaultModel))?.reasoningEfforts||[]).map(v=>({value:v,label:v}))]:[{value:'workspace-write',label:'可修改工作區 · workspace-write'},{value:'read-only',label:'唯讀 · read-only'}]).map(option=><button key={option.value} className="quick-option" onClick={()=>{if(modal==='model')setModel(option.value);else if(modal==='effort')setEffort(option.value);else setSandbox(option.value);setModal(null);}}><span>{option.label}</span><span>{(modal==='model'?model:modal==='effort'?effort:sandbox)===option.value?'✓':''}</span></button>)}</div>:modal==='settings'?<div className="settings-content"><div className="settings-section-label">執行設定</div>
  <label className="form-field"><span className="form-label">模型</span><select className="select" value={model} onChange={e=>setModel(e.target.value)}><option value="">預設 · {codexStatus?.defaultModel||'Codex CLI'}</option>{codexStatus?.models.map(option=><option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
- <label className="form-field"><span className="form-label">推理強度</span><select className="select" value={effort} onChange={e=>setEffort(e.target.value)}><option value="">預設</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra High</option><option value="max">Max</option><option value="ultra">Ultra</option></select></label>
+ <label className="form-field"><span className="form-label">推理強度</span><select className="select" value={effort} onChange={e=>setEffort(e.target.value)}><option value="">預設</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra High</option></select></label>
  <label className="form-field"><span className="form-label">Sandbox 權限</span><select className="select" value={sandbox} onChange={e=>setSandbox(e.target.value)}><option value="workspace-write">workspace-write · 可修改專案</option><option value="read-only">read-only · 唯讀</option></select></label>
  <div className="settings-section-label">剩餘額度</div><div className="usage-list">{codexStatus?.usageWindows.length?codexStatus.usageWindows.map(window=><div className="usage-row" key={window.label}><span>{window.label}</span><strong>{window.remainingPercent}%</strong></div>):<p className="form-help">目前 Codex CLI 未提供可顯示的額度資料。</p>}</div>
  {viewportDebug&&<button className="outline-btn" type="button" onClick={()=>{
@@ -261,7 +280,7 @@ export default function Workspace(){
   setTimeout(()=>URL.revokeObjectURL(url),1000);
  }}>匯出 iPhone 版面診斷（不含訊息內容）</button>}
  <div className="settings-section-label">伺服器</div><div className="settings-health">{cliBadge}<button className="outline-btn" onClick={()=>void api<{connected:boolean;version:string}>('/api/health').then(h=>{setConnected(h.connected);setVersion(h.version)})}><RefreshCw size={14}/>重新檢查</button></div><p className="form-help">此頁使用 Ubuntu 本機既有的 Codex 登入狀態；不會要求或儲存網站密碼。</p></div>:
- modal==='project'?<form onSubmit={e=>void addProject(e)} className="settings-content"><p className="form-help">只能加入位於伺服器 ALLOWED_PROJECT_ROOTS 下，且已初始化 Git 的資料夾。</p><label className="form-field"><span className="form-label">絕對路徑</span><input className="select" placeholder="/home/allen/projects/my-project" value={path} required onChange={e=>setPath(e.target.value)}/></label><label className="form-field"><span className="form-label">顯示名稱（可留空）</span><input className="select" placeholder="我的專案" value={projectName} onChange={e=>setProjectName(e.target.value)}/></label><button className="primary-button" type="submit"><Plus size={16}/>加入專案</button></form>:
+ modal==='skills'||modal==='mcp'?<div className="settings-content"><div className="settings-section-label">{modal==='skills'?'本機 Skills':'MCP 工具與伺服器'}</div>{(()=>{const data=modal==='skills'?skillData:mcpData;if(!data)return <p className="form-help">正在讀取 Codex 資料…</p>;if(!data.supported)return <p className="form-help">{data.message||'目前的 Codex 版本未提供此功能。'}</p>;return data.items.length?<pre className="git-output">{JSON.stringify(data.items,null,2)}</pre>:<p className="form-help">目前沒有可顯示的項目。</p>;})()}</div>:modal==='project'?<form onSubmit={e=>void addProject(e)} className="settings-content"><p className="form-help">只能加入位於伺服器 ALLOWED_PROJECT_ROOTS 下，且已初始化 Git 的資料夾。</p><label className="form-field"><span className="form-label">絕對路徑</span><input className="select" placeholder="/home/allen/projects/my-project" value={path} required onChange={e=>setPath(e.target.value)}/></label><label className="form-field"><span className="form-label">顯示名稱（可留空）</span><input className="select" placeholder="我的專案" value={projectName} onChange={e=>setProjectName(e.target.value)}/></label><button className="primary-button" type="submit"><Plus size={16}/>加入專案</button></form>:
  <div className="search-pane"><label className="search-input"><Search size={19}/><input autoFocus placeholder="搜尋..." value={search} onChange={e=>setSearch(e.target.value)}/></label><div className="search-results">{filtered.map(x=><button className="search-result" key={x.type+x.id} onClick={()=>{setModal(null);if(x.type==='project'){const p=projects.find(p=>p.id===x.id);if(p)void loadProject(p);}else void selectThread(x.id)}}><Search size={16}/><span><strong>{x.text}</strong><small>{x.sub}</small></span></button>)}{filtered.length===0&&<p className="empty-side">找不到結果</p>}</div></div>}
  </div></div>}
  {error&&<div className="toast" role="alert"><CircleAlert size={17}/>{error}<button onClick={()=>setError('')}><X size={14}/></button></div>}
