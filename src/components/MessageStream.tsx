@@ -25,7 +25,7 @@ function Approval({jobId,event,onApproval}:{jobId:string;event:EventRecord;onApp
  const p=event.payload;const id=str(p.requestId);
  return <section className="v2-approval" role="group" aria-label="Codex 操作批准"><strong><AlertCircle size={16}/>{p.method==='item/permissions/requestApproval'?'需要額外權限':'需要你的允許'}</strong><p>{str(p.reason)||'Codex 要執行需要明確批准的操作。'}</p>
  {p.permissions!=null&&<details><summary>檢視要求的權限範圍</summary><pre>{safeJSON(p.permissions)}</pre></details>}
- {p.networkApprovalContext!=null&&<details><summary>網路存取目的地</summary><pre>{safeJSON(p.networkApprovalContext)}</pre></details>
+ {p.networkApprovalContext!=null&&<details><summary>網路存取目的地</summary><pre>{safeJSON(p.networkApprovalContext)}</pre></details>}
  {str(p.cwd)&&<small>工作目錄：{str(p.cwd)}</small>}{str(p.command)&&<pre>{str(p.command)}</pre>}{p.changes!=null&&<details><summary>檢查修改內容</summary><pre>{safeJSON(p.changes)}</pre></details>}
  <div className="v2-approval-actions"><button type="button" onClick={()=>onApproval(jobId,id,'accept')}>允許這次</button><button type="button" onClick={()=>onApproval(jobId,id,'acceptForSession')}>此對話允許</button><button type="button" className="danger" onClick={()=>onApproval(jobId,id,'decline')}>拒絕</button></div></section>;
 }
