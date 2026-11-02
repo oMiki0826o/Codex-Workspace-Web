@@ -10,3 +10,8 @@ test('permanent dark theme has no toggle or option',()=>{
 test('mobile phone has status-bar breathing room',()=>{
  assert.match(css,/padding-top:max\(66px,env\(safe-area-inset-top/);
 });
+
+test('viewport diagnostic flag avoids synchronous setState inside effects',()=>{
+ assert.match(src,/useSyncExternalStore/);
+ assert.doesNotMatch(src,/useEffect\(\(\)=>\{setViewportDebug/);
+});

@@ -1,5 +1,5 @@
 'use client';
-import React, {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import React, {useCallback,useEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
 import { Plus, FolderClosed, PanelLeft, PanelRight, Settings2, Search, Bot, CircleCheck, CircleAlert, AlertCircle, LoaderCircle, Send, Square, ChevronRight, ChevronDown, GitBranch, FileCode2, TerminalSquare, X, LockKeyhole, ShieldCheck, RefreshCw, FolderGit2, Command, Code2 } from 'lucide-react';
 import type {Project,ThreadSummary,Thread,Job,EventRecord,FileNode,NativeThread,CodexStatus} from './types';
 import MessageStream from './MessageStream';
@@ -14,6 +14,8 @@ async function api<T>(path:string,init?:RequestInit):Promise<T>{
  const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error||`HTTP ${response.status}`);return body as T;
 }
 const post=(path:string,data:unknown)=>api<Record<string,unknown>>(path,{method:'POST',body:JSON.stringify(data)});
+const subscribeDebugFlag=()=>()=>{};
+const getDebugFlag=()=>new URLSearchParams(window.location.search).has('viewportDebug');
 const finishStates=['completed','failed','cancelled','interrupted'];
 
 function FileList({files,depth=0}:{files:FileNode[],depth?:number}){return <div className="file-tree">{files.map((file,index)=><FileRow file={file} depth={depth} key={index}/>)}</div>}
@@ -38,8 +40,7 @@ export default function Workspace(){
  const [connected,setConnected]=useState(false);const [version,setVersion]=useState('');
  const [loading,setLoading]=useState(false);const [submitting,setSubmitting]=useState(false);const [error,setError]=useState('');
  const [historyTruncated,setHistoryTruncated]=useState(false);
- const [viewportDebug,setViewportDebug]=useState(false);
- useEffect(()=>{setViewportDebug(new URLSearchParams(window.location.search).has('viewportDebug'));},[]);
+ const viewportDebug=useSyncExternalStore(subscribeDebugFlag,getDebugFlag,()=>false);
  const chatScrollRef=useRef<HTMLDivElement>(null);
  const closeToBottom=useRef(true);
  const selection=useRef(0);
