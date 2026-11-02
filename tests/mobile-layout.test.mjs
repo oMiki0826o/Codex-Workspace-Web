@@ -21,24 +21,31 @@ test('mobile inputs avoid iOS focusing zoom without disabling pinch zoom',()=>{
  assert.match(css,/\.composer textarea\s*\{[^}]*font-size:\s*16px/s);
 });
 
-test('mobile keyboard layout keeps the app shell stable while the iOS keyboard opens',()=>{
+test('iOS keyboard uses one visual viewport coordinator and leaves document flow unfixed',()=>{
  const src=source('src/components/Workspace.tsx');
  const css=source('src/app/ux-fixes.css');
- assert.doesNotMatch(src,/visualViewport/);
+ assert.match(src,/visualViewport/);
+ assert.match(src,/addEventListener\('resize',resync\)/);
+ assert.match(src,/dataset\.keyboardOpen/);
  assert.match(src,/chatScrollRef/);
  assert.doesNotMatch(src,/scrollIntoView/);
- assert.match(css,/\.app\s*\{[\s\S]*?height:\s*100vh/);
- assert.doesNotMatch(css,/\.app\s*\{[\s\S]{0,250}?height:\s*100dvh/);
- assert.doesNotMatch(css,/--visual-viewport-height|--composer-safe-bottom/);
+ assert.match(css,/position:\s*static !important/);
+ assert.match(css,/height:\s*var\(--app-viewport-height/);
+ assert.match(css,/top:\s*var\(--app-viewport-top/);
  assert.match(css,/\.sidebar-conversations\s*\{[\s\S]*?overflow-y:\s*auto/);
  assert.match(css,/\.composer-actions \.chip:nth-of-type\(3\)\s*\{\s*display:\s*flex/);
 });
 
-test('PWA content begins below the iPhone status area and keeps the topbar tappable',()=>{
+test('PWA reserves the iPhone safe area and bypasses stale Next HTML caches',()=>{
  const layout=source('src/app/layout.tsx');
  const css=source('src/app/ux-fixes.css');
- assert.doesNotMatch(layout,/viewportFit/);
- assert.match(layout,/statusBarStyle:\s*'black'/);
+ const worker=source('public/sw.js');
+ assert.match(layout,/viewportFit:\s*'cover'/);
+ assert.match(layout,/statusBarStyle:\s*'black-translucent'/);
  assert.match(css,/\.app\s*\{[\s\S]*?padding-top:\s*env\(safe-area-inset-top,\s*0px\)/);
  assert.match(css,/\.topbar\s*\{[\s\S]*?z-index:\s*10[\s\S]*?pointer-events:\s*auto/);
+ assert.match(worker,/codex-local-shell-v3/);
+ assert.match(worker,/skipWaiting\(\)/);
+ assert.match(worker,/request\.mode === 'navigate'/);
+ assert.doesNotMatch(worker,/STATIC_ASSETS\s*=\s*\[[^\]]*'\/'/);
 });

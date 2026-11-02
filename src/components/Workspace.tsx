@@ -41,6 +41,61 @@ export default function Workspace(){
  const selection=useRef(0);
  useEffect(()=>{void api<{authenticated:boolean,configured:boolean}>('/api/auth').then(x=>{setConfigured(x.configured);setAuth(x.authenticated?'ready':'login');}).catch(()=>setAuth('login'));},[]);
  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('codex-web-theme',theme)},[theme]);
+ useEffect(()=>{
+  const root=document.documentElement;
+  const viewport=window.visualViewport;
+  let raf=0;
+  let timers:ReturnType<typeof setTimeout>[]=[];
+  let idleHeight=Math.max(viewport?.height||0,window.innerHeight);
+  const editableFocused=()=>{
+   const active=document.activeElement;
+   return active instanceof HTMLElement &&
+    active.matches('textarea, input:not([type="checkbox"]):not([type="radio"]), [contenteditable="true"]');
+  };
+  const sync=()=>{
+   window.cancelAnimationFrame(raf);
+   raf=window.requestAnimationFrame(()=>{
+    const visualHeight=viewport?.height||window.innerHeight;
+    const editing=editableFocused();
+    if(!editing)idleHeight=Math.max(idleHeight,visualHeight);
+    const shrink=Math.max(idleHeight-visualHeight,window.innerHeight-visualHeight);
+    const keyboardOpen=Boolean(viewport&&editing&&shrink>110);
+    root.dataset.keyboardOpen=keyboardOpen?'true':'false';
+    root.style.setProperty('--app-viewport-height',keyboardOpen?`${Math.round(visualHeight)}px`:'100dvh');
+    root.style.setProperty('--app-viewport-top',keyboardOpen?`${Math.round(Math.max(0,viewport!.offsetTop))}px`:'0px');
+    root.style.setProperty('--composer-safe-bottom',keyboardOpen?'0px':'env(safe-area-inset-bottom, 0px)');
+   });
+  };
+  const resync=()=>{
+   sync();
+   timers.forEach(clearTimeout);
+   timers=[setTimeout(sync,80),setTimeout(sync,240),setTimeout(sync,500)];
+  };
+  const orientation=()=>{idleHeight=0;resync();};
+  resync();
+  viewport?.addEventListener('resize',resync);
+  viewport?.addEventListener('scroll',resync);
+  window.addEventListener('resize',resync);
+  window.addEventListener('orientationchange',orientation);
+  document.addEventListener('focusin',resync);
+  document.addEventListener('focusout',resync);
+  document.addEventListener('visibilitychange',resync);
+  return ()=>{
+   window.cancelAnimationFrame(raf);
+   timers.forEach(clearTimeout);
+   viewport?.removeEventListener('resize',resync);
+   viewport?.removeEventListener('scroll',resync);
+   window.removeEventListener('resize',resync);
+   window.removeEventListener('orientationchange',orientation);
+   document.removeEventListener('focusin',resync);
+   document.removeEventListener('focusout',resync);
+   document.removeEventListener('visibilitychange',resync);
+   delete root.dataset.keyboardOpen;
+   root.style.removeProperty('--app-viewport-height');
+   root.style.removeProperty('--app-viewport-top');
+   root.style.removeProperty('--composer-safe-bottom');
+  };
+ },[]);
  useEffect(()=>{document.body.classList.toggle('drawer-active',sidebarOpen||rightOpen||Boolean(modal));return()=>document.body.classList.remove('drawer-active');},[sidebarOpen,rightOpen,modal]);
  const notify=useCallback((message:string)=>{setError(message);window.setTimeout(()=>setError(''),6000)},[]);
  const loadThreads=useCallback(async(projectId:string)=>{const result=await api<{threads:ThreadSummary[]}>(`/api/threads?projectId=${encodeURIComponent(projectId)}`);setThreads(result.threads);return result.threads},[]);
