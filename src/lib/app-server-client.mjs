@@ -46,7 +46,7 @@ export class AppServerClient extends EventEmitter {
  async startTurn({threadId,prompt,model='',effort='',sandbox='workspace-write'}){return this.request('turn/start',{threadId,input:[{type:'text',text:prompt}],model:model||null,effort:effort||null,sandboxPolicy:{type:sandbox==='read-only'?'readOnly':'workspaceWrite',...(sandbox==='read-only'?{}:{writableRoots:[],networkAccess:false,excludeTmpdirEnvVar:false,excludeSlashTmp:false})}});}
  async interruptTurn(threadId,turnId){return this.request('turn/interrupt',{threadId,turnId});}
  async listThreads(params={}){return this.request('thread/list',params);}
- async readThread(threadId){return this.request('thread/read',{threadId});}
+ async readThread(threadId,options={}){return this.request('thread/read',{threadId,...options});}
  async listTurns(threadId,params={}){return this.request('thread/turns/list',{threadId,...params});}
  async listItems(threadId,params={}){return this.request('thread/items/list',{threadId,...params});}
  async listSkills(cwds=[]){return this.request('skills/list',{cwds,forceReload:false});}
