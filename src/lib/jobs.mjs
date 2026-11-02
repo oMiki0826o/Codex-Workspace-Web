@@ -134,8 +134,24 @@ export class AppServerJobManager {
         return;
       }
       if(eventType==='item/agentMessage/delta'){
-        this.#store.event(jobId,'item.updated',{type:'item.updated',item:{id:params.itemId,type:'agent_message',text:params.delta||''}});
-        return;
+        this.#store.event(jobId,'item.delta',{type:'item.delta',itemId:params.itemId,turnId:params.turnId,delta:params.delta||''});return;
+      }
+      if(eventType==='item/commandExecution/outputDelta'){
+        this.#store.event(jobId,'item.output',{type:'item.output',itemId:params.itemId,turnId:params.turnId,delta:params.delta||''});return;
+      }
+      if(eventType==='turn/plan/updated'){
+        this.#store.event(jobId,'turn.plan',{type:'turn.plan',turnId:params.turnId||turnId,plan:params.plan||[]});return;
+      }
+      if(eventType==='turn/diff/updated'){
+        this.#store.event(jobId,'turn.diff',{type:'turn.diff',turnId:params.turnId||turnId,diff:params.diff||''});return;
+      }
+      if(eventType==='thread/tokenUsage/updated'){
+        this.#store.event(jobId,'turn.usage',{type:'turn.usage',turnId:params.turnId||turnId,usage:params.tokenUsage||params.usage||{}});return;
+      }
+      if(eventType==='serverRequest/resolved'){
+        const requestId=String(params.requestId??params.id??'');
+        this.#pendingApprovals.get(jobId)?.delete(requestId);
+        this.#store.event(jobId,'approval.resolved',{type:'approval.resolved',requestId,external:true});return;
       }
       if(eventType==='turn/completed'&&params.turn?.id===turnId){
         for(const item of params.turn.items||[])this.#store.event(jobId,'item.completed',{type:'item.completed',item:normalizeItem(item)});
