@@ -32,3 +32,11 @@ test('mobile keyboard layout relies on dynamic viewport CSS without shrinking th
  assert.match(css,/\.sidebar-conversations\s*\{[\s\S]*?overflow-y:\s*auto/);
  assert.match(css,/\.composer-actions \.chip:nth-of-type\(3\)\s*\{\s*display:\s*flex/);
 });
+
+test('PWA content begins below the iPhone status area and keeps the topbar tappable',()=>{
+ const layout=source('src/app/layout.tsx');
+ const css=source('src/app/ux-fixes.css');
+ assert.match(layout,/viewportFit:\s*'cover'/);
+ assert.match(css,/\.app\s*\{[\s\S]*?padding-top:\s*env\(safe-area-inset-top,\s*0px\)/);
+ assert.match(css,/\.topbar\s*\{[\s\S]*?z-index:\s*10[\s\S]*?pointer-events:\s*auto/);
+});
