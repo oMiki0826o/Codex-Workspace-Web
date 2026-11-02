@@ -301,9 +301,3 @@ export default function Workspace(){
  {error&&<div className="toast" role="alert"><CircleAlert size={17}/>{error}<button onClick={()=>setError('')}><X size={14}/></button></div>}
  </div>
 }
-+name+' ');setModal(null);}}/>:<McpDirectory items={data.items}/>):<p className="form-help">目前沒有可顯示的項目。</p>;})()}</div>:modal==='project'?<form onSubmit={e=>void addProject(e)} className="settings-content"><p className="form-help">只能加入位於伺服器 ALLOWED_PROJECT_ROOTS 下，且已初始化 Git 的資料夾。</p><label className="form-field"><span className="form-label">絕對路徑</span><input className="select" placeholder="/home/allen/projects/my-project" value={path} required onChange={e=>setPath(e.target.value)}/></label><label className="form-field"><span className="form-label">顯示名稱（可留空）</span><input className="select" placeholder="我的專案" value={projectName} onChange={e=>setProjectName(e.target.value)}/></label><button className="primary-button" type="submit"><Plus size={16}/>加入專案</button></form>:
- <div className="search-pane"><label className="search-input"><Search size={19}/><input autoFocus placeholder="搜尋..." value={search} onChange={e=>setSearch(e.target.value)}/></label><div className="search-results">{filtered.map(x=><button className="search-result" key={x.type+x.id} onClick={()=>{setModal(null);if(x.type==='project'){const p=projects.find(p=>p.id===x.id);if(p)void loadProject(p);}else void selectThread(x.id)}}><Search size={16}/><span><strong>{x.text}</strong><small>{x.sub}</small></span></button>)}{filtered.length===0&&<p className="empty-side">找不到結果</p>}</div></div>}
- </div></div>}
- {error&&<div className="toast" role="alert"><CircleAlert size={17}/>{error}<button onClick={()=>setError('')}><X size={14}/></button></div>}
- </div>
-}
