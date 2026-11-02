@@ -186,3 +186,24 @@ test('file change approvals must never be implicitly accepted',async()=>{
   store.close();
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test('app server receives turn plan updates without optional threadId',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-app-plan-'));
+ try{
+  class FakeClient extends EventEmitter {
+   async connect(){}
+   async startThread(){return {thread:{id:'thread'}};}
+   async startTurn(){return {turn:{id:'turn'}};}
+  }
+  const store=createStore(join(dir,'s.db'));
+  const p=store.addProject('sample',dir),t=store.addThread(p.id),j=store.addJob(t.id,'make plan','key');
+  const client=new FakeClient();
+  await new AppServerJobManager(store,client).start(j.id,{dir});
+  client.emit('notification',{method:'turn/plan/updated',params:{turnId:'turn',plan:[{step:'test',status:'inProgress'}]}});
+  client.emit('notification',{method:'turn/plan/updated',params:{turnId:'other',plan:[{step:'foreign'}]}});
+  const plans=store.getEvents(j.id).filter(event=>event.type==='turn.plan');
+  assert.equal(plans.length,1);
+  assert.deepEqual(plans[0].payload.plan,[{step:'test',status:'inProgress'}]);
+  store.close();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

@@ -126,7 +126,10 @@ export class AppServerJobManager {
     };
     onNotification=message=>{
       const params=message?.params||{};
-      if(params.threadId!==nativeThreadId)return;
+      // Some valid turn events omit threadId. Bind them by the active turn id
+      // of this one-job App Server client, but never process another thread.
+      if(params.threadId&&params.threadId!==nativeThreadId)return;
+      if(!params.threadId&&params.turnId&&turnId&&params.turnId!==turnId)return;
       const eventType=message.method||'appserver.notification';
       if(eventType==='item/started'||eventType==='item/updated'||eventType==='item/completed'){
         const phase=eventType.split('/')[1];
