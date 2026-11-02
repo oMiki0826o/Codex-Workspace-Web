@@ -110,6 +110,7 @@ export class AppServerJobManager {
     }
     if(finishBeforeTurn())return;
     let settled=false;let turnId='';let onNotification;let onRequest;let onExit;
+    const proposedFileChanges=new Map();
     const finish=(status,code=0,message='')=>{
       if(settled)return;settled=true;
       if(message)this.#store.event(jobId,'webui.error',{type:'webui.error',message});
@@ -126,16 +127,38 @@ export class AppServerJobManager {
     };
     onNotification=message=>{
       const params=message?.params||{};
-      if(params.threadId!==nativeThreadId)return;
+      // Some valid turn events omit threadId. Bind them by the active turn id
+      // of this one-job App Server client, but never process another thread.
+      if(params.threadId&&params.threadId!==nativeThreadId)return;
+      if(!params.threadId&&params.turnId&&turnId&&params.turnId!==turnId)return;
       const eventType=message.method||'appserver.notification';
       if(eventType==='item/started'||eventType==='item/updated'||eventType==='item/completed'){
         const phase=eventType.split('/')[1];
+        if(params.item?.type==='fileChange'||params.item?.type==='file_change'){
+          if(params.item.id)proposedFileChanges.set(params.item.id,params.item.changes||null);
+        }
         this.#store.event(jobId,`item.${phase}`,{type:`item.${phase}`,item:normalizeItem(params.item||{})});
         return;
       }
       if(eventType==='item/agentMessage/delta'){
-        this.#store.event(jobId,'item.updated',{type:'item.updated',item:{id:params.itemId,type:'agent_message',text:params.delta||''}});
-        return;
+        this.#store.event(jobId,'item.delta',{type:'item.delta',itemId:params.itemId,turnId:params.turnId,delta:params.delta||''});return;
+      }
+      if(eventType==='item/commandExecution/outputDelta'){
+        this.#store.event(jobId,'item.output',{type:'item.output',itemId:params.itemId,turnId:params.turnId,delta:params.delta||''});return;
+      }
+      if(eventType==='turn/plan/updated'){
+        this.#store.event(jobId,'turn.plan',{type:'turn.plan',turnId:params.turnId||turnId,plan:params.plan||[]});return;
+      }
+      if(eventType==='turn/diff/updated'){
+        this.#store.event(jobId,'turn.diff',{type:'turn.diff',turnId:params.turnId||turnId,diff:params.diff||''});return;
+      }
+      if(eventType==='thread/tokenUsage/updated'){
+        this.#store.event(jobId,'turn.usage',{type:'turn.usage',turnId:params.turnId||turnId,usage:params.tokenUsage||params.usage||{}});return;
+      }
+      if(eventType==='serverRequest/resolved'){
+        const requestId=String(params.requestId??params.id??'');
+        this.#pendingApprovals.get(jobId)?.delete(requestId);
+        this.#store.event(jobId,'approval.resolved',{type:'approval.resolved',requestId,external:true});return;
       }
       if(eventType==='turn/completed'&&params.turn?.id===turnId){
         for(const item of params.turn.items||[])this.#store.event(jobId,'item.completed',{type:'item.completed',item:normalizeItem(item)});
@@ -149,9 +172,11 @@ export class AppServerJobManager {
     onRequest=message=>{
       const params=message?.params||{};
       if(params.threadId!==nativeThreadId)return;
-      if(!['item/commandExecution/requestApproval','item/fileChange/requestApproval'].includes(message.method))return;
+      if(!['item/commandExecution/requestApproval','item/fileChange/requestApproval','item/permissions/requestApproval'].includes(message.method)){
+        this.#store.event(jobId,'webui.warning',{type:'webui.warning',message:`Codex 要求尚未支援的互動：${message.method}。不會自動批准。`});return;
+      }
       const requestId=String(message.id);let approvals=this.#pendingApprovals.get(jobId);if(!approvals){approvals=new Map();this.#pendingApprovals.set(jobId,approvals);}approvals.set(requestId,message);
-      this.#store.event(jobId,'approval.request',{type:'approval.request',requestId,method:message.method,itemId:params.itemId,command:params.command||'',reason:params.reason||'',cwd:params.cwd||'',kind:params.kind||'command',changes:params.changes||params.fileChanges||null});
+      this.#store.event(jobId,'approval.request',{type:'approval.request',requestId,method:message.method,itemId:params.itemId,command:params.command||'',reason:params.reason||'',cwd:params.cwd||'',kind:message.method,changes:params.changes||params.fileChanges||proposedFileChanges.get(params.itemId)||null,permissions:params.permissions||null,networkApprovalContext:params.networkApprovalContext||null,availableDecisions:params.availableDecisions||null});
     };
     onExit=()=>{if(this.#running.has(jobId))finish('interrupted',1,'Codex App Server 已停止，工作已中斷');};
     client.on('notification',onNotification);
@@ -171,6 +196,13 @@ export class AppServerJobManager {
       throw error;
     }
   }
+  async steer(jobId,prompt){
+    const run=this.#running.get(jobId),client=this.#clients.get(jobId);
+    if(!run||!client||run.cancelled)throw new Error('目前沒有執行中的 Codex 回合');
+    if(typeof client.steerTurn!=='function')throw new Error('此 Codex 版本尚未提供追加指示');
+    await client.steerTurn(run.threadId,run.turnId,[{type:'text',text:prompt}]);
+    this.#store.event(jobId,'turn.steered',{type:'turn.steered',turnId:run.turnId,prompt});
+  }
   cancel(jobId){
     const starting=this.#starting.get(jobId);if(starting){starting.cancelled=true;return true;}
     const run=this.#running.get(jobId);if(!run)return false;
@@ -183,7 +215,10 @@ export class AppServerJobManager {
     if(!['accept','acceptForSession','decline','cancel'].includes(decision))throw new Error('無效的批准選項');
     const request=this.#pendingApprovals.get(jobId)?.get(requestId);if(!request)throw new Error('批准請求已失效，請重新整理對話');
     const client=this.#clients.get(jobId);if(!client)throw new Error('Codex 連線已關閉，請重新整理對話');
-    await client.respond(request.id,{decision});
+    const response=request.method==='item/permissions/requestApproval'
+      ?{scope:decision==='acceptForSession'?'session':'turn',permissions:decision==='accept'||decision==='acceptForSession'?(request.params?.permissions||{}):{}}
+      :{decision};
+    await client.respond(request.id,response);
     this.#pendingApprovals.get(jobId)?.delete(requestId);
     this.#store.event(jobId,'approval.resolved',{type:'approval.resolved',requestId,decision});
   }
