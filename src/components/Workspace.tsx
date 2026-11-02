@@ -5,6 +5,7 @@ import type {Project,ThreadSummary,Thread,Job,EventRecord,FileNode,NativeThread,
 import MessageStream from './MessageStream';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { computeViewportGeometry } from '@/lib/viewport-geometry.mjs';
 
 async function api<T>(path:string,init?:RequestInit):Promise<T>{
  const response=await fetch(path,{cache:'no-store',...init,headers:{...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers}});
@@ -41,13 +42,16 @@ export default function Workspace(){
  const selection=useRef(0);
  useEffect(()=>{void api<{authenticated:boolean,configured:boolean}>('/api/auth').then(x=>{setConfigured(x.configured);setAuth(x.authenticated?'ready':'login');}).catch(()=>setAuth('login'));},[]);
  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('codex-web-theme',theme)},[theme]);
+ // iOS Safari exposes a layout viewport and a panning visual viewport.
+ // An absolute app follows visualViewport.pageTop (DOCUMENT coordinates),
+ // avoiding a fixed shell plus offsetTop being displaced twice.
  useEffect(()=>{
   const root=document.documentElement;
   const viewport=window.visualViewport;
   let raf=0;
   let timers:ReturnType<typeof setTimeout>[]=[];
-  let idleHeight=Math.max(viewport?.height||0,window.innerHeight);
-  const editableFocused=()=>{
+  let baselineHeight=Math.max(window.innerHeight, viewport?.height||0);
+  const focused=()=>{
    const active=document.activeElement;
    return active instanceof HTMLElement &&
     active.matches('textarea, input:not([type="checkbox"]):not([type="radio"]), [contenteditable="true"]');
@@ -55,28 +59,33 @@ export default function Workspace(){
   const sync=()=>{
    window.cancelAnimationFrame(raf);
    raf=window.requestAnimationFrame(()=>{
+    const editing=focused();
     const visualHeight=viewport?.height||window.innerHeight;
-    const editing=editableFocused();
-    if(!editing)idleHeight=Math.max(idleHeight,visualHeight);
-    const shrink=Math.max(idleHeight-visualHeight,window.innerHeight-visualHeight);
-    const keyboardOpen=Boolean(viewport&&editing&&shrink>110);
-    root.dataset.keyboardOpen=keyboardOpen?'true':'false';
-    root.style.setProperty('--app-viewport-height',keyboardOpen?`${Math.round(visualHeight)}px`:'100dvh');
-    root.style.setProperty('--app-viewport-top',keyboardOpen?`${Math.round(Math.max(0,viewport!.offsetTop))}px`:'0px');
-    root.style.setProperty('--composer-safe-bottom',keyboardOpen?'0px':'env(safe-area-inset-bottom, 0px)');
+    if(!editing)baselineHeight=Math.max(baselineHeight, visualHeight, window.innerHeight);
+    const result=computeViewportGeometry({
+     visualHeight, layoutHeight:window.innerHeight,
+     visualPageTop:viewport?.pageTop??(window.scrollY+(viewport?.offsetTop||0)),
+     visualScale:viewport?.scale||1, focused:editing, baselineHeight,
+    });
+    root.dataset.keyboardOpen=String(result.keyboardOpen);
+    root.style.setProperty('--app-viewport-height',result.height);
+    root.style.setProperty('--app-viewport-top',result.pageTop);
+    root.style.setProperty('--composer-safe-bottom',result.keyboardOpen?'0px':'env(safe-area-inset-bottom, 0px)');
    });
   };
   const resync=()=>{
    sync();
    timers.forEach(clearTimeout);
-   timers=[setTimeout(sync,80),setTimeout(sync,240),setTimeout(sync,500)];
+   timers=[setTimeout(sync,70),setTimeout(sync,180),setTimeout(sync,380)];
   };
-  const orientation=()=>{idleHeight=0;resync();};
+  const orientation=()=>{baselineHeight=0;resync();};
   resync();
   viewport?.addEventListener('resize',resync);
   viewport?.addEventListener('scroll',resync);
   window.addEventListener('resize',resync);
+  window.addEventListener('scroll',sync,{passive:true});
   window.addEventListener('orientationchange',orientation);
+  window.addEventListener('pageshow',resync);
   document.addEventListener('focusin',resync);
   document.addEventListener('focusout',resync);
   document.addEventListener('visibilitychange',resync);
@@ -86,7 +95,9 @@ export default function Workspace(){
    viewport?.removeEventListener('resize',resync);
    viewport?.removeEventListener('scroll',resync);
    window.removeEventListener('resize',resync);
+   window.removeEventListener('scroll',sync);
    window.removeEventListener('orientationchange',orientation);
+   window.removeEventListener('pageshow',resync);
    document.removeEventListener('focusin',resync);
    document.removeEventListener('focusout',resync);
    document.removeEventListener('visibilitychange',resync);
