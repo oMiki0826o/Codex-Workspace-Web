@@ -31,7 +31,7 @@ Codex Workspace Web 是供私人 VPN 或受信任 LAN 使用的本機 Codex 網�
 - 將工作狀態及事件保存於 SQLite, 支援取消執行中的工作及 SSE 斷線後重新連線.
 - 每一項 App Server 明確要求的檔案或指令操作均由使用者在 WebUI 批准或拒絕.
 - 顯示模型, 推理強度, Sandbox 權限, token 用量及可取得的帳號用量資訊.
-- 支援深色與淺色主題, 手機抽屜式對話清單與行動版輸入控制項.
+- 固定深色主題，手機抽屜式對話清單與行動版輸入控制項。
 - 僅允許設定根目錄下的工作區, 並限制為 `read-only` 或 `workspace-write` Sandbox.
 
 ### 安裝
