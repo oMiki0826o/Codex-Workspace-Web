@@ -1,6 +1,6 @@
 # Codex Workspace Web
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-2.0.0--rc.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Tech](https://img.shields.io/badge/stack-Next.js-lightgrey)
 ![Node.js](https://img.shields.io/badge/node.js-24%2B-brightgreen)
@@ -31,8 +31,13 @@ Codex Workspace Web 是供私人 VPN 或受信任 LAN 使用的本機 Codex 網�
 - 將工作狀態及事件保存於 SQLite, 支援取消執行中的工作及 SSE 斷線後重新連線.
 - 每一項 App Server 明確要求的檔案或指令操作均由使用者在 WebUI 批准或拒絕.
 - 顯示模型, 推理強度, Sandbox 權限, token 用量及可取得的帳號用量資訊.
-- 固定深色主題，手機抽屜式對話清單與行動版輸入控制項。
+- Open WebUI 風格固定深色介面、獨立捲動對話列表、右滑開啟歷史／左滑開啟設定，以及支援手機輸入框的安全區域。
+- 即時呈現 Codex Tool、Plan、Diff、Token、權限批准等事件，並支援進行中回合追加指示（取決於 CLI 版本）。
+- 優先透過 App Server 讀取本機原生對話歷史；版本不支援時保留工作區範圍的 JSONL 唯讀備援。
+- 讀取 Skills 與 MCP 伺服器／工具狀態；未支援時明確標示，而非顯示假的按鈕。
 - 僅允許設定根目錄下的工作區, 並限制為 `read-only` 或 `workspace-write` Sandbox.
+
+[2.0 介面與協定設計紀錄](./docs/V2_IMPLEMENTATION_REVIEW.md) · [完整測試與裝置驗收](./docs/TESTING.md)
 
 ### 安裝
 
@@ -115,8 +120,12 @@ This is an independently built, unofficial web client and not the OpenAI Codex A
 - Persist job state and events in SQLite, cancel running jobs, and recover the UI through SSE reconnects.
 - Require a user decision in the WebUI for every explicit App Server file or command approval request.
 - Show model, reasoning effort, Sandbox mode, token usage, and available account usage information.
-- Provide dark and light themes, a mobile conversation drawer, and compact mobile composer controls.
+- Dark-only Open WebUI-inspired interface, independent conversation scrolling, right-swipe history, left-swipe settings, and mobile safe-area controls.
+- Native tool, plan, diff, usage, and approval event display, including explicit permission approval and steering for running turns where supported.
+- App Server-first native conversation history with restricted JSONL fallback; read-only Skills and MCP status viewers.
 - Restrict workspaces to configured roots and support only `read-only` and `workspace-write` Sandbox modes.
+
+[v2 implementation review](./docs/V2_IMPLEMENTATION_REVIEW.md) · [Verification and device acceptance](./docs/TESTING.md)
 
 ### Installation
 

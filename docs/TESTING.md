@@ -1,45 +1,33 @@
-# 驗證與發佈檢查
+# Codex Workspace Web v2 — Test and Acceptance Contract
 
-## 可在本機執行的自動檢查
+## Automated gates (Ubuntu Node.js 24)
 
 ```bash
-npm run test
+npm ci
+npm test
 npm run lint
 npm run typecheck
 npm run build
 ```
 
-- CLI／App Server 參數限制、使用 stdin、明確 thread resume。
-- JSONL/UTF-8 分段解碼。
-- 目錄 realpath 與 Git Repository 白名單。
-- SQLite 專案、對話、Jobs、事件回放與重啟後 interrupted。
-- scrypt 密碼與 Origin 比對。
-- 使用模擬子程序執行、JSONL 寫入、Thread ID 持久化、錯誤結束處理。
-- 工作區範圍的原生 session JSONL 解析、工具事件與 token 用量擷取。
+Automated tests cover native item event preservation, explicit permission grants and declines, file change approval previews, steer/interrupt lifecycle, thread read/list workspace boundaries, SSE event serialization, SQLite persistence, and model-specific capability discovery. Layout tests assert **the active imported CSS**, not unused legacy styles.
 
-`npm run lint` 執行 ESLint；`npm run typecheck` 執行 TypeScript 無輸出型別檢查；`npm run build` 驗證 Next.js production build。
+## Manual Ubuntu Codex integration
 
-## 需要在 Ubuntu 與套件安裝完成後驗證
+Run under the same unprivileged account that runs the website. Start a small Git repository below `ALLOWED_PROJECT_ROOTS`; ensure `DEFAULT_PROJECT_PATH` matches this root. Confirm `codex login status` and `codex app-server --help`.
 
-```bash
-npm install
-npm run typecheck
-npm run lint
-npm run build
-npm run start
-```
+Verify real `thread/start`, `turn/start`, `thread/resume` (including a conversation created in CLI), `thread/list` paging, `thread/read`, `model/list`, `skills/list`, `mcpServerStatus/list`, a command/file approval declined and approved with visible path and reason, `turn/interrupt` and `turn/steer`. Compare displayed tool output, plan, diff, usage and token counts with live App Server notifications. Confirm unsupported request kinds are not silently approved.
 
-1. 使用與 systemd 相同的普通 Linux 帳號執行 `codex login status`。
-2. 將測試 Git 專案加入 `ALLOWED_PROJECT_ROOTS`，開啟網站並新增對話。
-3. 發送唯讀 Prompt，檢查 SQLite 與畫面上 JSONL 事件。
-4. 第二次發送訊息驗證原生 Codex thread resume 能讀到第一輪上下文。
-5. 瀏覽器關閉、VPN 斷線、重開後能回看原 Job。
-6. 驗證同一對話不會同時執行兩個回合，並確認全站可並行任務數符合 `CODEX_WEB_MAX_ACTIVE`。
-7. 執行中停止，確認其子程序退出並狀態為 cancelled。
-8. 驗證異來源 POST 與未核准專案路徑無法觸發 Codex。
-9. 用 iPhone Safari 測試側欄、編輯框、分享與鍵盤顯示。
-10. 測試 systemd restart 將舊 running Job 標為 interrupted，不會自動重送內容。
+Disconnect network and reconnect SSE; verify event IDs do not duplicate and an uncompleted turn remains visibly running. Restart server to confirm persisted job states are safe.
 
-## 目前驗證限制
+## Manual iPhone Safari and PWA release gate
 
-自動檢查不等於真實手機、VPN、systemd 與已登入 Codex 的端到端驗收。發布或對外提供前，仍應在目標 Ubuntu 上執行以上人工檢查，並記錄實際結果。
+Add the site to the iPhone home screen via Safari. Capture before/after screenshots of app launch, focusing the composer and opening the Chinese keyboard, switching to English and emoji, text entry, turning the phone, hiding the keyboard, returning from background, and switching threads. Assert that at least 66px status-bar clearance survives every portrait state, text size does not trigger focus zoom, and the composer stays inside the visible viewport directly above keyboard without overlaying status bar.
+
+Test right swipe for conversation history, left swipe for settings, protected horizontal code scrolling, model/effort/sandbox choices, sidebar vertical scroll that does not move background conversation, and long multiline command and diff output.
+
+For reliable device debugging enable `?viewportDebug`, reproduce once and export the geometry-only JSON from Settings; this avoids guesswork. A passing Chromium simulation alone **must not** be marked Safari accepted.
+
+## Restore previous stable commit
+
+`db174bf5d977610da9bdb14dc44785d4d7c384c5` is the verified initial main baseline. Keep a separate backup of `.env` and `CODEX_WEB_DATA_DIR`, including SQLite, before rolling back. Do not force-push or overwrite changed repository data.
