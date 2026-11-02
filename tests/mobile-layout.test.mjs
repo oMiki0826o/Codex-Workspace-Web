@@ -21,21 +21,20 @@ test('mobile inputs avoid iOS focusing zoom without disabling pinch zoom',()=>{
  assert.match(css,/\.composer textarea\s*\{[^}]*font-size:\s*16px/s);
 });
 
-test('iOS keyboard uses one visual viewport coordinator and leaves document flow unfixed',()=>{
+test('visualViewport measures keyboard resize and chat scroll remains isolated',()=>{
  const src=source('src/components/Workspace.tsx');
  const css=source('src/app/ux-fixes.css');
  assert.match(src,/visualViewport/);
  assert.match(src,/addEventListener\('resize',resync\)/);
- assert.match(src,/dataset\.keyboardOpen/);
  assert.match(src,/chatScrollRef/);
  assert.doesNotMatch(src,/scrollIntoView/);
- assert.match(css,/position:\s*static !important/);
- assert.match(css,/height:\s*var\(--app-viewport-height/);
- assert.match(css,/top:\s*var\(--app-viewport-top/);
+ assert.match(css,/height:\s*var\(--chat-visible-height/);
+ assert.match(css,/position:\s*relative/);
+ assert.doesNotMatch(src,/--app-viewport-top/);
+ assert.match(src,/dataset\.keyboardOpen/);
  assert.match(css,/\.sidebar-conversations\s*\{[\s\S]*?overflow-y:\s*auto/);
  assert.match(css,/\.composer-actions \.chip:nth-of-type\(3\)\s*\{\s*display:\s*flex/);
 });
-
 test('PWA reserves the iPhone safe area and bypasses stale Next HTML caches',()=>{
  const layout=source('src/app/layout.tsx');
  const css=source('src/app/ux-fixes.css');

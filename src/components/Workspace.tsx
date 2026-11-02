@@ -1,11 +1,13 @@
 'use client';
 import React, {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import { Plus, FolderClosed, PanelLeft, PanelRight, Settings2, Search, Moon, Sun, Bot, CircleCheck, CircleAlert, AlertCircle, LoaderCircle, Send, Square, ChevronRight, ChevronDown, GitBranch, FileCode2, TerminalSquare, X, LockKeyhole, ShieldCheck, RefreshCw, FolderGit2, Command, Code2 } from 'lucide-react';
+import { Plus, FolderClosed, PanelLeft, PanelRight, Settings2, Search, Bot, CircleCheck, CircleAlert, AlertCircle, LoaderCircle, Send, Square, ChevronRight, ChevronDown, GitBranch, FileCode2, TerminalSquare, X, LockKeyhole, ShieldCheck, RefreshCw, FolderGit2, Command, Code2 } from 'lucide-react';
 import type {Project,ThreadSummary,Thread,Job,EventRecord,FileNode,NativeThread,CodexStatus} from './types';
 import MessageStream from './MessageStream';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { computeViewportGeometry } from '@/lib/viewport-geometry.mjs';
+import { computeKeyboardViewport } from '@/lib/viewport-geometry.mjs';
+import { getSwipeAction } from '@/lib/mobile-swipe.mjs';
+import { viewportSample } from '@/lib/viewport-diagnostics.mjs';
 
 async function api<T>(path:string,init?:RequestInit):Promise<T>{
  const response=await fetch(path,{cache:'no-store',...init,headers:{...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers}});
@@ -13,7 +15,6 @@ async function api<T>(path:string,init?:RequestInit):Promise<T>{
 }
 const post=(path:string,data:unknown)=>api<Record<string,unknown>>(path,{method:'POST',body:JSON.stringify(data)});
 const finishStates=['completed','failed','cancelled','interrupted'];
-const initialTheme=()=>typeof window==='undefined'?'dark':localStorage.getItem('codex-web-theme')||'dark';
 
 function FileList({files,depth=0}:{files:FileNode[],depth?:number}){return <div className="file-tree">{files.map((file,index)=><FileRow file={file} depth={depth} key={index}/>)}</div>}
 function FileRow({file,depth}:{file:FileNode,depth:number}){const [open,setOpen]=useState(depth<2);return <div>
@@ -34,77 +35,98 @@ export default function Workspace(){
  const [sidebarOpen,setSidebarOpen]=useState(false);const [rightOpen,setRightOpen]=useState(false);
  const [modal,setModal]=useState<'settings'|'project'|'search'|'model'|'effort'|'sandbox'|null>(null);const [path,setPath]=useState('');const [projectName,setProjectName]=useState('');
  const [search,setSearch]=useState('');const [prompt,setPrompt]=useState('');const [sandbox,setSandbox]=useState('workspace-write');const [model,setModel]=useState('');const [effort,setEffort]=useState('');
- const [theme,setTheme]=useState(initialTheme);const [connected,setConnected]=useState(false);const [version,setVersion]=useState('');
+ const [connected,setConnected]=useState(false);const [version,setVersion]=useState('');
  const [loading,setLoading]=useState(false);const [submitting,setSubmitting]=useState(false);const [error,setError]=useState('');
  const [historyTruncated,setHistoryTruncated]=useState(false);
+ const [viewportDebug,setViewportDebug]=useState(false);
+ useEffect(()=>{setViewportDebug(new URLSearchParams(window.location.search).has('viewportDebug'));},[]);
  const chatScrollRef=useRef<HTMLDivElement>(null);
  const closeToBottom=useRef(true);
  const selection=useRef(0);
+ const gestureStart=useRef<{x:number;y:number;t:number;width:number;protectedTarget:boolean}|null>(null);
+ const handleSwipeStart=(e:React.TouchEvent<HTMLElement>)=>{
+  if(e.touches.length!==1 || window.innerWidth>767 || sidebarOpen || modal || rightOpen){gestureStart.current=null;return;}
+  const target=e.target as Element;
+  const protectedTarget=Boolean(target.closest('button,a,input,textarea,select,pre,code,[contenteditable="true"],.composer-actions,.approval-card,.tool-output,.git-output'));
+  const touch=e.touches[0];
+  gestureStart.current={x:touch.clientX,y:touch.clientY,t:Date.now(),width:window.innerWidth,protectedTarget};
+ };
+ const handleSwipeEnd=(e:React.TouchEvent<HTMLElement>)=>{
+  const start=gestureStart.current;gestureStart.current=null;
+  if(!start||!e.changedTouches.length)return;
+  const touch=e.changedTouches[0];
+  const action=getSwipeAction({startX:start.x,startY:start.y,endX:touch.clientX,endY:touch.clientY,
+   elapsedMs:Date.now()-start.t,width:start.width,protectedTarget:start.protectedTarget});
+  if(action==='conversations'){setSidebarOpen(true);setRightOpen(false);}
+  if(action==='settings'){setModal('settings');setSidebarOpen(false);}
+ };
  useEffect(()=>{void api<{authenticated:boolean,configured:boolean}>('/api/auth').then(x=>{setConfigured(x.configured);setAuth(x.authenticated?'ready':'login');}).catch(()=>setAuth('login'));},[]);
- useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('codex-web-theme',theme)},[theme]);
+ useEffect(()=>{document.documentElement.dataset.theme='dark';try{localStorage.removeItem('codex-web-theme')}catch{/* Safari private mode */}},[]);
  // iOS Safari exposes a layout viewport and a panning visual viewport.
  // An absolute app follows visualViewport.pageTop (DOCUMENT coordinates),
  // avoiding a fixed shell plus offsetTop being displaced twice.
+ // Measure only the keyboard viewport height. Do not shift the entire app
+ // to pageTop: Safari may independently scroll the document during focus.
  useEffect(()=>{
   const root=document.documentElement;
   const viewport=window.visualViewport;
-  let raf=0;
+  const composer=document.querySelector<HTMLElement>('.composer-wrap');
+  let frame=0;
   let timers:ReturnType<typeof setTimeout>[]=[];
-  let baselineHeight=Math.max(window.innerHeight, viewport?.height||0);
-  const focused=()=>{
-   const active=document.activeElement;
-   return active instanceof HTMLElement &&
-    active.matches('textarea, input:not([type="checkbox"]):not([type="radio"]), [contenteditable="true"]');
-  };
+  let baseline=Math.max(window.innerHeight,viewport?.height||0);
   const sync=()=>{
-   window.cancelAnimationFrame(raf);
-   raf=window.requestAnimationFrame(()=>{
-    const editing=focused();
-    const visualHeight=viewport?.height||window.innerHeight;
-    if(!editing)baselineHeight=Math.max(baselineHeight, visualHeight, window.innerHeight);
-    const result=computeViewportGeometry({
-     visualHeight, layoutHeight:window.innerHeight,
-     visualPageTop:viewport?.pageTop??(window.scrollY+(viewport?.offsetTop||0)),
-     visualScale:viewport?.scale||1, focused:editing, baselineHeight,
-    });
-    root.dataset.keyboardOpen=String(result.keyboardOpen);
-    root.style.setProperty('--app-viewport-height',result.height);
-    root.style.setProperty('--app-viewport-top',result.pageTop);
-    root.style.setProperty('--composer-safe-bottom',result.keyboardOpen?'0px':'env(safe-area-inset-bottom, 0px)');
+   cancelAnimationFrame(frame);
+   frame=requestAnimationFrame(()=>{
+    const active=document.activeElement;
+    const focused=active instanceof HTMLElement && active.matches('input, textarea, [contenteditable="true"]');
+    const vheight=viewport?.height||window.innerHeight;
+    if(!focused)baseline=Math.max(baseline,vheight,window.innerHeight);
+    const state=computeKeyboardViewport({visualHeight:vheight,layoutHeight:window.innerHeight,
+     baselineHeight:baseline,focused,scale:viewport?.scale||1});
+    root.dataset.keyboardOpen=String(state.keyboardOpen);
+    root.style.setProperty('--chat-visible-height',state.height);
+    root.style.setProperty('--chat-safe-bottom',state.keyboardOpen?'0px':'env(safe-area-inset-bottom,0px)');
+    if(new URLSearchParams(location.search).has('viewportDebug')){
+     const app=document.querySelector('.app')?.getBoundingClientRect();
+     const composerRect=document.querySelector('.composer-wrap')?.getBoundingClientRect();
+     const record=viewportSample({innerHeight:innerHeight,scrollY:scrollY,
+      visualHeight:viewport?.height??null,offsetTop:viewport?.offsetTop??null,
+      pageTop:viewport?.pageTop??null,scale:viewport?.scale??1,
+      appTop:app?.top??null,appBottom:app?.bottom??null,
+      composerTop:composerRect?.top??null,composerBottom:composerRect?.bottom??null,focused});
+     try{
+      const key='codex-viewport-diagnostic-v1';
+      const history=JSON.parse(sessionStorage.getItem(key)||'[]') as unknown[];
+      sessionStorage.setItem(key,JSON.stringify([...history.slice(-59),{at:Date.now(),...record}]));
+     }catch{/* Safari private mode */}
+    }
    });
   };
-  const resync=()=>{
-   sync();
-   timers.forEach(clearTimeout);
-   timers=[setTimeout(sync,70),setTimeout(sync,180),setTimeout(sync,380)];
-  };
-  const orientation=()=>{baselineHeight=0;resync();};
+  const resync=()=>{sync();timers.forEach(clearTimeout);timers=[setTimeout(sync,70),setTimeout(sync,220),setTimeout(sync,450)];};
+  const orient=()=>{baseline=0;resync();};
+  let resizeObserver:ResizeObserver|undefined;
+  if(composer && typeof ResizeObserver!=='undefined'){
+   resizeObserver=new ResizeObserver(()=>root.style.setProperty('--chat-composer-height',String(Math.ceil(composer.getBoundingClientRect().height))+'px'));
+   resizeObserver.observe(composer);
+  }
   resync();
   viewport?.addEventListener('resize',resync);
   viewport?.addEventListener('scroll',resync);
   window.addEventListener('resize',resync);
-  window.addEventListener('scroll',sync,{passive:true});
-  window.addEventListener('orientationchange',orientation);
-  window.addEventListener('pageshow',resync);
+  window.addEventListener('orientationchange',orient);
   document.addEventListener('focusin',resync);
   document.addEventListener('focusout',resync);
-  document.addEventListener('visibilitychange',resync);
+  const onShow=()=>resync();window.addEventListener('pageshow',onShow);
   return ()=>{
-   window.cancelAnimationFrame(raf);
-   timers.forEach(clearTimeout);
+   cancelAnimationFrame(frame);timers.forEach(clearTimeout);resizeObserver?.disconnect();
    viewport?.removeEventListener('resize',resync);
    viewport?.removeEventListener('scroll',resync);
-   window.removeEventListener('resize',resync);
-   window.removeEventListener('scroll',sync);
-   window.removeEventListener('orientationchange',orientation);
-   window.removeEventListener('pageshow',resync);
-   document.removeEventListener('focusin',resync);
-   document.removeEventListener('focusout',resync);
-   document.removeEventListener('visibilitychange',resync);
+   window.removeEventListener('resize',resync);window.removeEventListener('orientationchange',orient);
+   window.removeEventListener('pageshow',onShow);
+   document.removeEventListener('focusin',resync);document.removeEventListener('focusout',resync);
    delete root.dataset.keyboardOpen;
-   root.style.removeProperty('--app-viewport-height');
-   root.style.removeProperty('--app-viewport-top');
-   root.style.removeProperty('--composer-safe-bottom');
+   root.style.removeProperty('--chat-visible-height');root.style.removeProperty('--chat-safe-bottom');
+   root.style.removeProperty('--chat-composer-height');
   };
  },[]);
  useEffect(()=>{document.body.classList.toggle('drawer-active',sidebarOpen||rightOpen||Boolean(modal));return()=>document.body.classList.remove('drawer-active');},[sidebarOpen,rightOpen,modal]);
@@ -196,7 +218,7 @@ export default function Workspace(){
  <header className="topbar"><button className="icon-btn hamburger" type="button" title="開啟選單" onClick={()=>setSidebarOpen(true)}><PanelLeft size={19}/></button>
  <div className="brand"><span>Codex</span></div>
  <button className="top-search" type="button" onClick={()=>{setSearch('');setModal('search');}}><Search size={16}/><span>搜尋對話...</span><span className="keycap">⌘ K</span></button>
- <div className="top-actions"><span className={`connected-label ${connected?'connected':'disconnected'}`}><span className="dot"/>{connected?'Codex 已連接':'Codex 離線'}</span><button className="icon-btn" title="切換主題" onClick={()=>setTheme(x=>x==='dark'?'light':'dark')}>{theme==='dark'?<Sun size={19}/>:<Moon size={19}/>}</button><button className="icon-btn" title="設定" onClick={()=>setModal('settings')}><Settings2 size={19}/></button></div>
+ <div className="top-actions"><span className={`connected-label ${connected?'connected':'disconnected'}`}><span className="dot"/>{connected?'Codex 已連接':'Codex 離線'}</span><button className="icon-btn" title="設定" onClick={()=>setModal('settings')}><Settings2 size={19}/></button></div>
  </header>
  <div className="body">
  <aside className={`sidebar ${sidebarOpen?'open':''}`}>
@@ -210,7 +232,7 @@ export default function Workspace(){
   </div><div className="sidebar-footer"><span className={`status-dot ${connected?'ok':''}`}/><strong>Codex</strong><span>{connected?'已連接':'無法連接'}</span><span className="version">LOCAL</span></div>
  </aside>
  <div className={`scrim ${sidebarOpen?'active':''}`} onClick={()=>setSidebarOpen(false)}/>
- <main className="main">
+ <main className="main" onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd} onTouchCancel={()=>{gestureStart.current=null;}}>
   <div className="session-head"><div className="session-heading-group"><div className="session-title"><span>{thread?.title||'新增對話'}</span></div><div className="session-subtitle">{project?.path||'固定工作區'}</div></div>
    <div className="session-actions"><span className="project-branch"><GitBranch size={13}/> workspace</span><button type="button" className="outline-btn" onClick={()=>setRightOpen(x=>!x)}><PanelRight size={15}/><span className="hide-small">檔案</span></button></div>
   </div>
@@ -235,7 +257,14 @@ export default function Workspace(){
  <label className="form-field"><span className="form-label">模型</span><select className="select" value={model} onChange={e=>setModel(e.target.value)}><option value="">預設 · {codexStatus?.defaultModel||'Codex CLI'}</option>{codexStatus?.models.map(option=><option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
  <label className="form-field"><span className="form-label">推理強度</span><select className="select" value={effort} onChange={e=>setEffort(e.target.value)}><option value="">預設</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra High</option><option value="max">Max</option><option value="ultra">Ultra</option></select></label>
  <label className="form-field"><span className="form-label">Sandbox 權限</span><select className="select" value={sandbox} onChange={e=>setSandbox(e.target.value)}><option value="workspace-write">workspace-write · 可修改專案</option><option value="read-only">read-only · 唯讀</option></select></label>
- <div className="settings-section-label">剩餘額度</div><div className="usage-list">{codexStatus?.usageWindows.length?codexStatus.usageWindows.map(window=><div className="usage-row" key={window.label}><span>{window.label}</span><strong>{window.remainingPercent}%</strong></div>):<p className="form-help">目前 Codex CLI 未提供可顯示的額度資料。</p>}</div><div className="settings-section-label">網站外觀</div><label className="form-field"><span className="form-label">主題</span><select className="select" value={theme} onChange={e=>setTheme(e.target.value)}><option value="dark">深色</option><option value="light">淺色</option></select></label>
+ <div className="settings-section-label">剩餘額度</div><div className="usage-list">{codexStatus?.usageWindows.length?codexStatus.usageWindows.map(window=><div className="usage-row" key={window.label}><span>{window.label}</span><strong>{window.remainingPercent}%</strong></div>):<p className="form-help">目前 Codex CLI 未提供可顯示的額度資料。</p>}</div>
+ {viewportDebug&&<button className="outline-btn" type="button" onClick={()=>{
+  const data=sessionStorage.getItem('codex-viewport-diagnostic-v1')||'[]';
+  const file=new Blob([data],{type:'application/json'});
+  const url=URL.createObjectURL(file);const link=document.createElement('a');
+  link.href=url;link.download='codex-viewport-diagnostic.json';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }}>匯出 iPhone 版面診斷（不含訊息內容）</button>}
  <div className="settings-section-label">伺服器</div><div className="settings-health">{cliBadge}<button className="outline-btn" onClick={()=>void api<{connected:boolean;version:string}>('/api/health').then(h=>{setConnected(h.connected);setVersion(h.version)})}><RefreshCw size={14}/>重新檢查</button></div><p className="form-help">此頁使用 Ubuntu 本機既有的 Codex 登入狀態；不會要求或儲存網站密碼。</p></div>:
  modal==='project'?<form onSubmit={e=>void addProject(e)} className="settings-content"><p className="form-help">只能加入位於伺服器 ALLOWED_PROJECT_ROOTS 下，且已初始化 Git 的資料夾。</p><label className="form-field"><span className="form-label">絕對路徑</span><input className="select" placeholder="/home/allen/projects/my-project" value={path} required onChange={e=>setPath(e.target.value)}/></label><label className="form-field"><span className="form-label">顯示名稱（可留空）</span><input className="select" placeholder="我的專案" value={projectName} onChange={e=>setProjectName(e.target.value)}/></label><button className="primary-button" type="submit"><Plus size={16}/>加入專案</button></form>:
  <div className="search-pane"><label className="search-input"><Search size={19}/><input autoFocus placeholder="搜尋..." value={search} onChange={e=>setSearch(e.target.value)}/></label><div className="search-results">{filtered.map(x=><button className="search-result" key={x.type+x.id} onClick={()=>{setModal(null);if(x.type==='project'){const p=projects.find(p=>p.id===x.id);if(p)void loadProject(p);}else void selectThread(x.id)}}><Search size={16}/><span><strong>{x.text}</strong><small>{x.sub}</small></span></button>)}{filtered.length===0&&<p className="empty-side">找不到結果</p>}</div></div>}

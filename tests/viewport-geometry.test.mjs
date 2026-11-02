@@ -1,27 +1,19 @@
-import { test } from 'node:test';
+import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { computeViewportGeometry } from '../src/lib/viewport-geometry.mjs';
-
-const css = readFileSync(new URL('../src/app/ux-fixes.css',import.meta.url),'utf8');
-test('pageTop includes Safari document scroll when the keyboard pans the visual viewport',()=>{
- const result=computeViewportGeometry({visualHeight:416,layoutHeight:844,visualPageTop:182,visualScale:1,focused:true,baselineHeight:844});
- assert.deepEqual(result,{keyboardOpen:true,height:'416px',pageTop:'182px'});
+import {readFileSync} from 'node:fs';
+import {computeKeyboardViewport} from '../src/lib/viewport-geometry.mjs';
+const css=readFileSync(new URL('../src/app/ux-fixes.css',import.meta.url),'utf8');
+test('keyboard shrink changes height only',()=>{
+ const x=computeKeyboardViewport({visualHeight:416,layoutHeight:844,baselineHeight:844,focused:true,scale:1});
+ assert.deepEqual(x,{keyboardOpen:true,height:'416px'});
 });
-test('pinch zoom alone does not trigger keyboard layout',()=>{
- const result=computeViewportGeometry({visualHeight:420,layoutHeight:844,visualPageTop:12,visualScale:2,focused:true,baselineHeight:844});
- assert.equal(result.keyboardOpen,false);assert.equal(result.pageTop,'0px');
+test('pinch zoom must not look like keyboard',()=>{
+ assert.equal(computeKeyboardViewport({visualHeight:420,layoutHeight:844,baselineHeight:844,focused:true,scale:2}).keyboardOpen,false);
 });
-test('blur restores normal CSS height and top',()=>{
- const result=computeViewportGeometry({visualHeight:416,layoutHeight:844,visualPageTop:182,visualScale:1,focused:false,baselineHeight:844});
- assert.equal(result.keyboardOpen,false);assert.equal(result.height,'100dvh');assert.equal(result.pageTop,'0px');
+test('blur returns to dvh',()=>{
+ assert.equal(computeKeyboardViewport({visualHeight:416,layoutHeight:844,baselineHeight:844,focused:false,scale:1}).height,'100dvh');
 });
-test('mobile CSS anchors exactly one absolute application frame',()=>{
- assert.match(css,/\.app\s*\{[^}]*position:\s*absolute/);
- assert.doesNotMatch(css,/\.app\s*\{[^}]*position:\s*fixed/);
- assert.match(css,/top:\s*var\(--app-viewport-top/);
- assert.match(css,/height:\s*var\(--app-viewport-height/);
-});
-test('standalone header has a safe-area top fallback',()=>{
- assert.match(css,/@media\s*\(display-mode:\s*standalone\)[^{]*\{[\s\S]*?\.app\s*\{\s*padding-top:\s*max\(env\(safe-area-inset-top[^;]*44px\)/);
+test('safe area portrait fallback',()=>{
+ assert.match(css,/@media \(max-width:767px\) and \(orientation:portrait\)/);
+ assert.match(css,/padding-top:max\(66px,env\(safe-area-inset-top/);
 });
