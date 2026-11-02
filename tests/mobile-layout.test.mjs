@@ -29,7 +29,8 @@ test('visualViewport measures keyboard resize and chat scroll remains isolated',
  assert.match(src,/chatScrollRef/);
  assert.doesNotMatch(src,/scrollIntoView/);
  assert.match(css,/height:\s*var\(--chat-visible-height/);
- assert.match(css,/position:\s*relative/);
+ assert.match(css,/\.app\s*\{[\s\S]*?position:\s*fixed/);
+ assert.match(css,/\.composer-wrap\s*\{[\s\S]*?position:\s*relative/);
  assert.doesNotMatch(src,/--app-viewport-top/);
  assert.match(src,/dataset\.keyboardOpen/);
  assert.match(css,/\.sidebar-conversations\s*\{[\s\S]*?overflow-y:\s*auto/);
@@ -41,7 +42,7 @@ test('PWA reserves the iPhone safe area and bypasses stale Next HTML caches',()=
  const worker=source('public/sw.js');
  assert.match(layout,/viewportFit:\s*'cover'/);
  assert.match(layout,/statusBarStyle:\s*'black-translucent'/);
- assert.match(css,/\.app\s*\{[\s\S]*?padding-top:\s*env\(safe-area-inset-top,\s*0px\)/);
+ assert.match(css,/\.app\s*\{[\s\S]*?padding-top:\s*max\(66px,env\(safe-area-inset-top,\s*0px\)/);
  assert.match(css,/\.topbar\s*\{[\s\S]*?z-index:\s*10[\s\S]*?pointer-events:\s*auto/);
  assert.match(worker,/codex-local-shell-v3/);
  assert.match(worker,/skipWaiting\(\)/);
