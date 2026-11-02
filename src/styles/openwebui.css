@@ -21,3 +21,9 @@ html,body{height:100%;overflow:hidden!important;position:static!important}.app{p
 .v2-directory{display:flex;flex-direction:column;gap:10px}.v2-directory-card{padding:13px;background:#252529;border:1px solid #3e3e44;border-radius:11px}.v2-directory-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.v2-directory-heading strong{overflow-wrap:anywhere;font-size:13px}.v2-directory-heading span,.v2-directory-card small{color:#97979f;font-size:11px}.v2-directory-card p{line-height:1.55;font-size:12px;color:#c6c6cb;overflow-wrap:anywhere}.v2-directory-card button{margin-top:7px}.v2-directory-card details{padding-top:9px}.v2-directory-card summary{cursor:pointer;font-size:12px;overflow-wrap:anywhere}
 
 .v2-warning{padding:10px 12px;margin:10px 0;border-radius:8px;border:1px solid #665833;background:#242015;color:#edcc86;font-size:12px;overflow-wrap:anywhere}
+
+/* Compact native select controls replace the nested model/effort/sandbox modal stack. */
+.v2-chip-select{position:relative;display:inline-flex;flex:0 0 auto;align-items:center;max-width:190px;min-height:34px;padding:0 8px;border:1px solid #3b3b40;border-radius:9px;background:#27272a;color:#c6c6ca;white-space:nowrap}
+.v2-chip-select select{font-family:inherit;background:transparent;color:inherit;border:0;outline:0;appearance:none;-webkit-appearance:none;font-size:12px!important;max-width:145px;text-overflow:ellipsis;min-width:0;padding:6px 4px 6px 0}
+.v2-chip-select option{background:#202023;color:#ededf0}.v2-chip-select:focus-within{outline:2px solid #bfc0c8;outline-offset:2px}.v2-chip-select svg{pointer-events:none;flex:0 0 12px;opacity:.7}
+@media(max-width:767px){.v2-chip-select select{font-size:16px!important;max-width:135px}.v2-chip-select{min-height:35px}}
