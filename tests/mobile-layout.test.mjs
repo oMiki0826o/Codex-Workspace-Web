@@ -21,13 +21,14 @@ test('mobile inputs avoid iOS focusing zoom without disabling pinch zoom',()=>{
  assert.match(css,/\.composer textarea\s*\{[^}]*font-size:\s*16px/s);
 });
 
-test('mobile keyboard layout relies on dynamic viewport CSS without shrinking the app twice',()=>{
+test('mobile keyboard layout keeps the app shell stable while the iOS keyboard opens',()=>{
  const src=source('src/components/Workspace.tsx');
  const css=source('src/app/ux-fixes.css');
  assert.doesNotMatch(src,/visualViewport/);
  assert.match(src,/chatScrollRef/);
  assert.doesNotMatch(src,/scrollIntoView/);
- assert.match(css,/\.app\s*\{[\s\S]*?height:\s*100dvh/);
+ assert.match(css,/\.app\s*\{[\s\S]*?height:\s*100vh/);
+ assert.doesNotMatch(css,/\.app\s*\{[\s\S]{0,250}?height:\s*100dvh/);
  assert.doesNotMatch(css,/--visual-viewport-height|--composer-safe-bottom/);
  assert.match(css,/\.sidebar-conversations\s*\{[\s\S]*?overflow-y:\s*auto/);
  assert.match(css,/\.composer-actions \.chip:nth-of-type\(3\)\s*\{\s*display:\s*flex/);
@@ -36,7 +37,8 @@ test('mobile keyboard layout relies on dynamic viewport CSS without shrinking th
 test('PWA content begins below the iPhone status area and keeps the topbar tappable',()=>{
  const layout=source('src/app/layout.tsx');
  const css=source('src/app/ux-fixes.css');
- assert.match(layout,/viewportFit:\s*'cover'/);
+ assert.doesNotMatch(layout,/viewportFit/);
+ assert.match(layout,/statusBarStyle:\s*'black'/);
  assert.match(css,/\.app\s*\{[\s\S]*?padding-top:\s*env\(safe-area-inset-top,\s*0px\)/);
  assert.match(css,/\.topbar\s*\{[\s\S]*?z-index:\s*10[\s\S]*?pointer-events:\s*auto/);
 });
