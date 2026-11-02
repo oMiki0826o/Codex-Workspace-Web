@@ -25,6 +25,20 @@ function FileRow({file,depth}:{file:FileNode,depth:number}){const [open,setOpen]
  {file.type==='directory'?<FolderClosed size={15} className="folder-glyph"/>:<FileCode2 size={14} className="file-glyph"/>}<span>{file.name}</span>
  </button>{file.type==='directory'&&open&&file.children&&<FileList files={file.children} depth={depth+1}/>}</div>}
 
+const record=(value:unknown):Record<string,unknown>=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
+const label=(value:unknown):string=>typeof value==='string'?value:'';
+function SkillDirectory({items,onUse}:{items:unknown[],onUse:(name:string)=>void}){
+ return <div className="v2-directory">{items.map((item,i)=>{const row=record(item);const name=label(row.name);
+  return <div className="v2-directory-card" key={name||i}><div className="v2-directory-heading"><strong>{name||'未命名 Skill'}</strong><span>{row.enabled===false?'已停用':'可用'}</span></div>
+  <p>{label(row.description)||'這個 Skill 未提供描述。'}</p>
+  <button type="button" className="outline-btn" disabled={!name||row.enabled===false} onClick={()=>onUse(name)}>在對話中使用</button></div>;})}</div>;
+}
+function McpDirectory({items}:{items:unknown[]}){
+ return <div className="v2-directory">{items.map((item,i)=>{const row=record(item);const name=label(row.name);const tools=Array.isArray(row.tools)?row.tools:[];
+  return <section className="v2-directory-card" key={name||i}><div className="v2-directory-heading"><strong>{name||'未命名伺服器'}</strong><span>{label(row.status)||'狀態未知'}</span></div>
+  <small>{tools.length} 項已公開工具</small>{tools.map((tool,j)=>{const t=record(tool);return <details key={j}><summary>{label(t.name)||'工具'}</summary><p>{label(t.description)||'沒有描述'}</p></details>})}</section>;})}</div>;
+}
+
 export default function Workspace(){
  const [auth,setAuth]=useState<'checking'|'login'|'ready'>('checking');const [configured,setConfigured]=useState(true);
  const [password,setPassword]=useState('');const [loginBusy,setLoginBusy]=useState(false);
@@ -281,7 +295,13 @@ export default function Workspace(){
   setTimeout(()=>URL.revokeObjectURL(url),1000);
  }}>匯出 iPhone 版面診斷（不含訊息內容）</button>}
  <div className="settings-section-label">伺服器</div><div className="settings-health">{cliBadge}<button className="outline-btn" onClick={()=>void api<{connected:boolean;version:string}>('/api/health').then(h=>{setConnected(h.connected);setVersion(h.version)})}><RefreshCw size={14}/>重新檢查</button></div><p className="form-help">此頁使用 Ubuntu 本機既有的 Codex 登入狀態；不會要求或儲存網站密碼。</p></div>:
- modal==='skills'||modal==='mcp'?<div className="settings-content"><div className="settings-section-label">{modal==='skills'?'本機 Skills':'MCP 工具與伺服器'}</div>{(()=>{const data=modal==='skills'?skillData:mcpData;if(!data)return <p className="form-help">正在讀取 Codex 資料…</p>;if(!data.supported)return <p className="form-help">{data.message||'目前的 Codex 版本未提供此功能。'}</p>;return data.items.length?<pre className="git-output">{JSON.stringify(data.items,null,2)}</pre>:<p className="form-help">目前沒有可顯示的項目。</p>;})()}</div>:modal==='project'?<form onSubmit={e=>void addProject(e)} className="settings-content"><p className="form-help">只能加入位於伺服器 ALLOWED_PROJECT_ROOTS 下，且已初始化 Git 的資料夾。</p><label className="form-field"><span className="form-label">絕對路徑</span><input className="select" placeholder="/home/allen/projects/my-project" value={path} required onChange={e=>setPath(e.target.value)}/></label><label className="form-field"><span className="form-label">顯示名稱（可留空）</span><input className="select" placeholder="我的專案" value={projectName} onChange={e=>setProjectName(e.target.value)}/></label><button className="primary-button" type="submit"><Plus size={16}/>加入專案</button></form>:
+ modal==='skills'||modal==='mcp'?<div className="settings-content"><div className="settings-section-label">{modal==='skills'?'本機 Skills':'MCP 工具與伺服器'}</div>{(()=>{const data=modal==='skills'?skillData:mcpData;if(!data)return <p className="form-help">正在讀取 Codex 資料…</p>;if(!data.supported)return <p className="form-help">{data.message||'目前的 Codex 版本未提供此功能。'}</p>;return data.items.length?(modal==='skills'?<SkillDirectory items={data.items} onUse={name=>{setPrompt(p=>(p?`${p} `:'' )+'})()}</div>:modal==='project'?<form onSubmit={e=>void addProject(e)} className="settings-content"><p className="form-help">只能加入位於伺服器 ALLOWED_PROJECT_ROOTS 下，且已初始化 Git 的資料夾。</p><label className="form-field"><span className="form-label">絕對路徑</span><input className="select" placeholder="/home/allen/projects/my-project" value={path} required onChange={e=>setPath(e.target.value)}/></label><label className="form-field"><span className="form-label">顯示名稱（可留空）</span><input className="select" placeholder="我的專案" value={projectName} onChange={e=>setProjectName(e.target.value)}/></label><button className="primary-button" type="submit"><Plus size={16}/>加入專案</button></form>:
+ <div className="search-pane"><label className="search-input"><Search size={19}/><input autoFocus placeholder="搜尋..." value={search} onChange={e=>setSearch(e.target.value)}/></label><div className="search-results">{filtered.map(x=><button className="search-result" key={x.type+x.id} onClick={()=>{setModal(null);if(x.type==='project'){const p=projects.find(p=>p.id===x.id);if(p)void loadProject(p);}else void selectThread(x.id)}}><Search size={16}/><span><strong>{x.text}</strong><small>{x.sub}</small></span></button>)}{filtered.length===0&&<p className="empty-side">找不到結果</p>}</div></div>}
+ </div></div>}
+ {error&&<div className="toast" role="alert"><CircleAlert size={17}/>{error}<button onClick={()=>setError('')}><X size={14}/></button></div>}
+ </div>
+}
++name+' ');setModal(null);}}/>:<McpDirectory items={data.items}/>):<p className="form-help">目前沒有可顯示的項目。</p>;})()}</div>:modal==='project'?<form onSubmit={e=>void addProject(e)} className="settings-content"><p className="form-help">只能加入位於伺服器 ALLOWED_PROJECT_ROOTS 下，且已初始化 Git 的資料夾。</p><label className="form-field"><span className="form-label">絕對路徑</span><input className="select" placeholder="/home/allen/projects/my-project" value={path} required onChange={e=>setPath(e.target.value)}/></label><label className="form-field"><span className="form-label">顯示名稱（可留空）</span><input className="select" placeholder="我的專案" value={projectName} onChange={e=>setProjectName(e.target.value)}/></label><button className="primary-button" type="submit"><Plus size={16}/>加入專案</button></form>:
  <div className="search-pane"><label className="search-input"><Search size={19}/><input autoFocus placeholder="搜尋..." value={search} onChange={e=>setSearch(e.target.value)}/></label><div className="search-results">{filtered.map(x=><button className="search-result" key={x.type+x.id} onClick={()=>{setModal(null);if(x.type==='project'){const p=projects.find(p=>p.id===x.id);if(p)void loadProject(p);}else void selectThread(x.id)}}><Search size={16}/><span><strong>{x.text}</strong><small>{x.sub}</small></span></button>)}{filtered.length===0&&<p className="empty-side">找不到結果</p>}</div></div>}
  </div></div>}
  {error&&<div className="toast" role="alert"><CircleAlert size={17}/>{error}<button onClick={()=>setError('')}><X size={14}/></button></div>}
