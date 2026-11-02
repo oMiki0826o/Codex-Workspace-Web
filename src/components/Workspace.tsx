@@ -41,28 +41,6 @@ export default function Workspace(){
  const selection=useRef(0);
  useEffect(()=>{void api<{authenticated:boolean,configured:boolean}>('/api/auth').then(x=>{setConfigured(x.configured);setAuth(x.authenticated?'ready':'login');}).catch(()=>setAuth('login'));},[]);
  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('codex-web-theme',theme)},[theme]);
- useEffect(()=>{
-  const root=document.documentElement;
-  const viewport=window.visualViewport;
-  let raf=0;
-  const sync=()=>{
-   window.cancelAnimationFrame(raf);
-   raf=window.requestAnimationFrame(()=>{
-    const height=viewport?.height||window.innerHeight;
-    const top=viewport?.offsetTop||0;
-    const keyboardOpen=Boolean(viewport&&window.innerHeight-viewport.height>120);
-    root.style.setProperty('--visual-viewport-height',`${Math.round(height)}px`);
-    root.style.setProperty('--visual-viewport-top',`${Math.max(0,Math.round(top))}px`);
-    root.style.setProperty('--composer-safe-bottom',keyboardOpen?'0px':'env(safe-area-inset-bottom, 0px)');
-   });
-  };
-  sync();
-  viewport?.addEventListener('resize',sync);
-  viewport?.addEventListener('scroll',sync);
-  window.addEventListener('resize',sync);
-  window.addEventListener('orientationchange',sync);
-  return ()=>{window.cancelAnimationFrame(raf);viewport?.removeEventListener('resize',sync);viewport?.removeEventListener('scroll',sync);window.removeEventListener('resize',sync);window.removeEventListener('orientationchange',sync);root.style.removeProperty('--visual-viewport-height');root.style.removeProperty('--visual-viewport-top');root.style.removeProperty('--composer-safe-bottom');};
- },[]);
  useEffect(()=>{document.body.classList.toggle('drawer-active',sidebarOpen||rightOpen||Boolean(modal));return()=>document.body.classList.remove('drawer-active');},[sidebarOpen,rightOpen,modal]);
  const notify=useCallback((message:string)=>{setError(message);window.setTimeout(()=>setError(''),6000)},[]);
  const loadThreads=useCallback(async(projectId:string)=>{const result=await api<{threads:ThreadSummary[]}>(`/api/threads?projectId=${encodeURIComponent(projectId)}`);setThreads(result.threads);return result.threads},[]);

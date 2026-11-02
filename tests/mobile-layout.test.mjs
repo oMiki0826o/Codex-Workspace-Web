@@ -21,14 +21,14 @@ test('mobile inputs avoid iOS focusing zoom without disabling pinch zoom',()=>{
  assert.match(css,/\.composer textarea\s*\{[^}]*font-size:\s*16px/s);
 });
 
-test('visualViewport follows keyboard resize, with scroll locked to the chat pane',()=>{
+test('mobile keyboard layout relies on dynamic viewport CSS without shrinking the app twice',()=>{
  const src=source('src/components/Workspace.tsx');
  const css=source('src/app/ux-fixes.css');
- assert.match(src,/visualViewport/);
- assert.match(src,/addEventListener\('resize',sync\)/);
+ assert.doesNotMatch(src,/visualViewport/);
  assert.match(src,/chatScrollRef/);
  assert.doesNotMatch(src,/scrollIntoView/);
- assert.match(css,/height:\s*var\(--visual-viewport-height/);
+ assert.match(css,/\.app\s*\{[\s\S]*?height:\s*100dvh/);
+ assert.doesNotMatch(css,/--visual-viewport-height|--composer-safe-bottom/);
  assert.match(css,/\.sidebar-conversations\s*\{[\s\S]*?overflow-y:\s*auto/);
  assert.match(css,/\.composer-actions \.chip:nth-of-type\(3\)\s*\{\s*display:\s*flex/);
 });
