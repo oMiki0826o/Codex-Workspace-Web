@@ -31,7 +31,7 @@ function Approval({jobId,event,onApproval}:{jobId:string;event:EventRecord;onApp
 }
 function Turn({job,events,onApproval}:{job:Job;events:EventRecord[];onApproval:(jobId:string,requestId:string,decision:Decision)=>void}){
  const state=useMemo(()=>{
-  const items=new Map<string,Item>(),plans=new Map<string,unknown>(),diffs=new Map<string,string>(),pending=new Map<string,EventRecord>(),seen=new Set<number>();let failure='';
+  const items=new Map<string,Item>(),plans=new Map<string,unknown>(),diffs=new Map<string,string>(),pending=new Map<string,EventRecord>(),seen=new Set<number>();let failure='',warning='';
   for(const event of events){if(seen.has(event.id))continue;seen.add(event.id);const p=event.payload,raw=obj(p.item),id=str(raw.id)||str(p.itemId);
    if(['item.started','item.updated','item.completed'].includes(event.type)&&id){const old=items.get(id);if(!old?.done||event.type==='item.completed'){const completed=event.type==='item.completed';const item:Item={...old,...raw,id,type:str(raw.type)||old?.type||'unknown',done:completed||old?.done||false};const content=str(raw.text);if(content){item.text=completed?content:event.type==='item.updated'&&/agent.?message/i.test(item.type)?str(old?.text)+content:content;}items.set(id,item);}}
    if(['item.delta','item.output'].includes(event.type)&&id){const old=items.get(id)||{id,type:event.type==='item.delta'?'agentMessage':'commandExecution'};const field=event.type==='item.delta'?'text':'output';if(!old.done)items.set(id,{...old,[field]:str(old[field])+str(p.delta)});}
@@ -40,8 +40,9 @@ function Turn({job,events,onApproval}:{job:Job;events:EventRecord[];onApproval:(
    if(event.type==='approval.request')pending.set(str(p.requestId),event);
    if(['approval.resolved','appserver.serverRequest.resolved'].includes(event.type))pending.delete(str(p.requestId)||str(p.id));
    if(['webui.error','turn.failed','error'].includes(event.type))failure=str(p.message)||str(obj(p.error).message)||'Codex 執行失敗';
+   if(event.type==='webui.warning')warning=str(p.message)||'Codex 回報尚未處理的互動事件';
   }
-  return {items:[...items.values()],plans:[...plans.values()],diffs:[...diffs.values()],pending:[...pending.values()],failure};
+  return {items:[...items.values()],plans:[...plans.values()],diffs:[...diffs.values()],pending:[...pending.values()],failure,warning};
  },[events]);
  const messages=state.items.filter(x=>['agentMessage','agent_message'].includes(x.type));
  const tools=state.items.filter(x=>!['agentMessage','agent_message','reasoning'].includes(x.type));
@@ -51,7 +52,7 @@ function Turn({job,events,onApproval}:{job:Job;events:EventRecord[];onApproval:(
  {state.diffs.map((diff,i)=><details key={i} className="v2-tool"><summary>Git / 檔案變更</summary><pre>{diff.slice(0,32000)}</pre></details>)}
  {['running','queued'].includes(job.status)&&state.pending.map(x=><Approval key={x.id} jobId={job.id} event={x} onApproval={onApproval}/>)}
  {messages.map(x=><div className="markdown-body v2-answer" key={x.id}><ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>{x.text||''}</ReactMarkdown></div>)}
- {!messages.length&&<p className="v2-muted">{job.status==='running'||job.status==='queued'?'Codex 正在處理…':job.status==='completed'?'已完成，沒有文字回覆。':'此回合沒有完整文字回覆。'}</p>}{state.failure&&<p className="v2-error">{state.failure}</p>}
+ {!messages.length&&<p className="v2-muted">{job.status==='running'||job.status==='queued'?'Codex 正在處理…':job.status==='completed'?'已完成，沒有文字回覆。':'此回合沒有完整文字回覆。'}</p>}{state.warning&&<p className="v2-warning">{state.warning}</p>}{state.failure&&<p className="v2-error">{state.failure}</p>}
  </div></div></article>;
 }
 export default function MessageStream({jobs,events,onApproval}:{jobs:Job[];events:Record<string,EventRecord[]>;onApproval:(jobId:string,requestId:string,decision:Decision)=>void}){
