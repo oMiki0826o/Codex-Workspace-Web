@@ -235,3 +235,23 @@ test('file approval preview associates pending changes from started item',async(
   store.close();
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test('steer uses native turn/steer rather than starting another job',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-steer-'));
+ try{
+  class FakeClient extends EventEmitter{
+   constructor(){super();this.calls=[];}
+   async connect(){}
+   async startThread(){return {thread:{id:'thread'}};}
+   async startTurn(){return {turn:{id:'turn'}};}
+   async steerTurn(threadId,turnId,input){this.calls.push({threadId,turnId,input});}
+  }
+  const store=createStore(join(dir,'db')),p=store.addProject('sample',dir),t=store.addThread(p.id),j=store.addJob(t.id,'original','req');
+  const client=new FakeClient(),manager=new AppServerJobManager(store,client);
+  await manager.start(j.id,{dir});
+  await manager.steer(j.id,'additional instruction');
+  assert.deepEqual(client.calls,[{threadId:'thread',turnId:'turn',input:[{type:'text',text:'additional instruction'}]}]);
+  assert.equal(store.getEvents(j.id).some(e=>e.type==='turn.steered'),true);
+  store.close();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

@@ -196,6 +196,13 @@ export class AppServerJobManager {
       throw error;
     }
   }
+  async steer(jobId,prompt){
+    const run=this.#running.get(jobId),client=this.#clients.get(jobId);
+    if(!run||!client||run.cancelled)throw new Error('目前沒有執行中的 Codex 回合');
+    if(typeof client.steerTurn!=='function')throw new Error('此 Codex 版本尚未提供追加指示');
+    await client.steerTurn(run.threadId,run.turnId,[{type:'text',text:prompt}]);
+    this.#store.event(jobId,'turn.steered',{type:'turn.steered',turnId:run.turnId,prompt});
+  }
   cancel(jobId){
     const starting=this.#starting.get(jobId);if(starting){starting.cancelled=true;return true;}
     const run=this.#running.get(jobId);if(!run)return false;
