@@ -1,5 +1,5 @@
 import './globals.css';
-import './ux-fixes.css';
+import '@/styles/openwebui.css';
 import PwaRegistration from '@/components/PwaRegistration';
 import type { Metadata, Viewport } from 'next';
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover' };
