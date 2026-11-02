@@ -63,11 +63,9 @@ export default function Workspace(){
  };
  useEffect(()=>{void api<{authenticated:boolean,configured:boolean}>('/api/auth').then(x=>{setConfigured(x.configured);setAuth(x.authenticated?'ready':'login');}).catch(()=>setAuth('login'));},[]);
  useEffect(()=>{document.documentElement.dataset.theme='dark';try{localStorage.removeItem('codex-web-theme')}catch{/* Safari private mode */}},[]);
- // iOS Safari exposes a layout viewport and a panning visual viewport.
- // An absolute app follows visualViewport.pageTop (DOCUMENT coordinates),
- // avoiding a fixed shell plus offsetTop being displaced twice.
- // Measure only the keyboard viewport height. Do not shift the entire app
- // to pageTop: Safari may independently scroll the document during focus.
+ // iOS Safari moves the visual viewport when the keyboard opens.
+ // Only .app is fixed; all its children, including the composer, remain
+ // in a single flex layout. offsetTop is measured in fixed layout coordinates.
  useEffect(()=>{
   const root=document.documentElement;
   const viewport=window.visualViewport;
@@ -83,9 +81,10 @@ export default function Workspace(){
     const vheight=viewport?.height||window.innerHeight;
     if(!focused)baseline=Math.max(baseline,vheight,window.innerHeight);
     const state=computeKeyboardViewport({visualHeight:vheight,layoutHeight:window.innerHeight,
-     baselineHeight:baseline,focused,scale:viewport?.scale||1});
+     baselineHeight:baseline,focused,scale:viewport?.scale||1,offsetTop:viewport?.offsetTop||0});
     root.dataset.keyboardOpen=String(state.keyboardOpen);
     root.style.setProperty('--chat-visible-height',state.height);
+    root.style.setProperty('--chat-viewport-top',state.top);
     root.style.setProperty('--chat-safe-bottom',state.keyboardOpen?'0px':'env(safe-area-inset-bottom,0px)');
     if(new URLSearchParams(location.search).has('viewportDebug')){
      const app=document.querySelector('.app')?.getBoundingClientRect();
@@ -105,11 +104,6 @@ export default function Workspace(){
   };
   const resync=()=>{sync();timers.forEach(clearTimeout);timers=[setTimeout(sync,70),setTimeout(sync,220),setTimeout(sync,450)];};
   const orient=()=>{baseline=0;resync();};
-  let resizeObserver:ResizeObserver|undefined;
-  if(composer && typeof ResizeObserver!=='undefined'){
-   resizeObserver=new ResizeObserver(()=>root.style.setProperty('--chat-composer-height',String(Math.ceil(composer.getBoundingClientRect().height))+'px'));
-   resizeObserver.observe(composer);
-  }
   resync();
   viewport?.addEventListener('resize',resync);
   viewport?.addEventListener('scroll',resync);
@@ -119,7 +113,7 @@ export default function Workspace(){
   document.addEventListener('focusout',resync);
   const onShow=()=>resync();window.addEventListener('pageshow',onShow);
   return ()=>{
-   cancelAnimationFrame(frame);timers.forEach(clearTimeout);resizeObserver?.disconnect();
+   cancelAnimationFrame(frame);timers.forEach(clearTimeout);
    viewport?.removeEventListener('resize',resync);
    viewport?.removeEventListener('scroll',resync);
    window.removeEventListener('resize',resync);window.removeEventListener('orientationchange',orient);
@@ -127,7 +121,7 @@ export default function Workspace(){
    document.removeEventListener('focusin',resync);document.removeEventListener('focusout',resync);
    delete root.dataset.keyboardOpen;
    root.style.removeProperty('--chat-visible-height');root.style.removeProperty('--chat-safe-bottom');
-   root.style.removeProperty('--chat-composer-height');
+   root.style.removeProperty('--chat-viewport-top');
   };
  },[]);
  useEffect(()=>{document.body.classList.toggle('drawer-active',sidebarOpen||rightOpen||Boolean(modal));return()=>document.body.classList.remove('drawer-active');},[sidebarOpen,rightOpen,modal]);
@@ -243,7 +237,7 @@ export default function Workspace(){
    </div></div>
   <div className="composer-wrap"><form className="composer" onSubmit={e=>{e.preventDefault();void (activeJob?stop():submit());}}>
    <label htmlFor="prompt" className="screen-reader-only">傳送訊息給 Codex</label>
-   <textarea id="prompt" placeholder={project?'向 Codex 傳送訊息...':'請先新增或選擇專案'} value={prompt} onChange={e=>setPrompt(e.target.value)} disabled={!project||Boolean(activeJob)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void (activeJob?stop():submit());}}} rows={3}/>
+   <textarea id="prompt" onMouseDown={e=>{if(window.matchMedia('(pointer: coarse)').matches && document.activeElement!==e.currentTarget){e.currentTarget.focus({preventScroll:true});e.preventDefault();}}} placeholder={project?'向 Codex 傳送訊息...':'請先新增或選擇專案'} value={prompt} onChange={e=>setPrompt(e.target.value)} disabled={!project||Boolean(activeJob)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void (activeJob?stop():submit());}}} rows={3}/>
    <div className="composer-actions"><span className="composer-small-label"><TerminalSquare size={16}/> 本機</span><button type="button" className="chip" onClick={()=>setModal('model')}>{model||'模型'} <ChevronDown size={13}/></button><button type="button" className="chip" onClick={()=>setModal('effort')}>{effort||'推理'} <ChevronDown size={13}/></button><button type="button" className="chip" onClick={()=>setModal('sandbox')}>{sandbox==='workspace-write'?'工作區寫入':'唯讀'}<ChevronDown size={13}/></button><span className="composer-spacer"/><button type="submit" className={`send-btn ${activeJob?'stop':''}`} disabled={!activeJob&&(!prompt.trim()||!project||submitting)} title={activeJob?'停止':'傳送'}>{activeJob?<Square size={17} fill="currentColor"/>:submitting?<LoaderCircle size={17} className="spin"/>:<Send size={18}/>}</button></div>
    </form><div className="footer-note">{loading?'正在載入對話…':activeJob?'工作正在 Ubuntu 持續執行；離開網頁不會停止它。':'本機 Codex App Server · 固定工作區'}</div></div>
  </main>
