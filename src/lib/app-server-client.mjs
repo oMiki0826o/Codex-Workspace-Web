@@ -50,7 +50,7 @@ export class AppServerClient extends EventEmitter {
  async listTurns(threadId,params={}){return this.request('thread/turns/list',{threadId,...params});}
  async listItems(threadId,params={}){return this.request('thread/items/list',{threadId,...params});}
  async listSkills(cwds=[]){return this.request('skills/list',{cwds,forceReload:false});}
- async listMcpServers(){return this.request('mcpServerStatus/list',{detail:'toolsAndAuthOnly'});}
+ async listMcpServers(cursor=null){return this.request('mcpServerStatus/list',{detail:'toolsAndAuthOnly',limit:100,...(cursor?{cursor}:{})});}
  async steerTurn(threadId,expectedTurnId,input){return this.request('turn/steer',{threadId,expectedTurnId,input});}
  async archiveThread(threadId){return this.request('thread/archive',{threadId});}
  async respond(id,result){

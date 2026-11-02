@@ -1,4 +1,5 @@
-const METHODS=['model/list','thread/list','thread/read','thread/turns/list','skills/list','mcpServerStatus/list'];
+// Avoid calling thread-scoped methods without a valid threadId.
+const METHODS=['model/list','thread/list','skills/list','mcpServerStatus/list'];
 export async function discoverCodexCapabilities(client){
  const result={experimental:false,methods:{},models:[],checkedAt:new Date().toISOString()};
  for(const method of METHODS){
