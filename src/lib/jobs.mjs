@@ -80,7 +80,7 @@ export class AppServerJobManager {
   #pendingApprovals=new Map();
   constructor(store,clientOrFactory){
     this.#store=store;
-    this.#clientFactory=typeof clientOrFactory==='function'?clientOrFactory:()=>clientOrFactory||new AppServerClient();
+    this.#clientFactory=typeof clientOrFactory==='function'?clientOrFactory:bin=>clientOrFactory||new AppServerClient(bin);
   }
   async start(jobId,{dir,sandbox='workspace-write',model='',effort='',route='cloud',bin=undefined}){
     const job=this.#store.getJob(jobId);if(!job)throw new Error('找不到工作');
