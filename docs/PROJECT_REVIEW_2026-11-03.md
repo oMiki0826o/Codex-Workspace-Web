@@ -1,8 +1,8 @@
 # Codex Workspace Web — 完整程式碼與行動版 UI 審查報告
 
 **審查日期：** 2026-11-03  
-**同步基準：** GitHub `main` 的 `cbd328d42ed5e2005b6cb712b6b8e4c7e8d2ce5d`（已包含兩路模型後端修正）  
-**本次修正：** PR #3 `fix/composer-model-effort-layout-20261103`  
+**審查基準：** GitHub `main` 的 `cbd328d42ed5e2005b6cb712b6b8e4c7e8d2ce5d`（含兩路模型路由）；**最終驗證：** `fccdfff75ec0b0ce38519866dfb0752d7a5c500a`  
+**本次修正：** PR #3 已合併為 `c4587a55533a3c3c2e9ffbd84dd6b381ef26545f`，設定頁一致性修正 `fccdfff75ec0b0ce38519866dfb0752d7a5c500a` 已推送 `main`  
 **方法：** 使用者實際 iPhone 截圖、追蹤 React DOM / CSS cascade、GitHub Actions 紅綠測試、原始碼靜態審查，及 Codex App Server 官方協定對照。  
 **限制：** 無法從 CI 代替 iPhone Safari／主畫面 PWA 實機；無法驗證使用者 Ubuntu 中的 App Server、Ollama 與模型存取狀態。以下將「程式碼有實作」與「真實裝置／環境已驗收」嚴格區分。
 
@@ -22,7 +22,7 @@
 
 ## 2. 已完成的本次修改
 
-- 將模型與推理強度合併成**一個「模型」按鈕**：先選擇模型，若該模型有宣告 `reasoningEfforts`，接著進入「選擇推理強度」清單；沒有宣告則直接使用預設。
+- 將模型與推理強度合併成**一個「模型」按鈕**：先選擇模型，若該模型有宣告 `reasoningEfforts`，接著進入「選擇推理強度」清單；沒有宣告則直接使用預設。輸入框與設定頁**共用相同的兩階段選擇器**，不再於設定頁放兩個獨立 `select`。
 - 切換模型時清除舊強度，避免把上一個模型不支援的強度沿用到下一個模型；選擇器只使用伺服器提供的模型／強度資料，沒有硬編造固定模型名稱。
 - 保留獨立「Sandbox／工作區寫入」按鈕，並由同一工具列承載「停止／傳送」。
 - 將傳送／停止按鈕從 `position:absolute` 改成工具列內的 **flex normal-flow siblings**；不再覆蓋工作區控制項。
@@ -32,7 +32,7 @@
 
 ### 驗證證據
 
-第一個測試提交 `94249eba` 在修正前如預期 **失敗**，指出舊版沒有合併模型按鈕／沒有 normal-flow 傳送鍵。修正提交 `e21172e8` 的 GitHub Actions Run `41562888904`：**67 tests passed, 0 failed；lint、typecheck、production build 全部通過**。這是程式碼與 Linux CI 驗證，**不是 iPhone Safari 實機驗證**。
+第一個測試提交 `94249eba` 在修正前如預期 **失敗**，指出舊版沒有合併模型按鈕／沒有 normal-flow 傳送鍵。修正提交 `e21172e8` 的 GitHub Actions Run `41562888904`：67 項測試通過。最後 `main` 提交 `fccdfff7` 的 GitHub Actions Run **`41564505606`：69 tests passed、0 failed；lint、typecheck、Next.js production build 全部通過**。這是程式碼與 Linux CI 驗證，**不是 iPhone Safari 實機驗證**。
 
 ## 3. 全專案審查發現
 
@@ -63,13 +63,13 @@
 
 | 驗證 | 本輪結果 | 說明 |
 |---|---|---|
-| 同步 GitHub `main` | 已確認 `cbd328d4` | 沒有用舊 ZIP 覆蓋新模型路由。 |
+| 同步 GitHub `main` | `fccdfff7` | 保留兩路模型路由，合併 PR #3 和設定頁選擇器修正。 |
 | Regression RED | 已觀察失敗 | 舊版無單一模型按鈕、布局仍可覆蓋。 |
-| Regression GREEN | CI `41562888904`，67/67 通過 | 首輪修正 CI，包括 0 failed。 |
-| ESLint | CI pass | 首輪 CI 有兩項 unused warnings；後續另外移除無用變數／匯入，結果以最新 CI 為準。 |
+| Regression GREEN | CI `41564505606`，**69/69 通過** | 最新功能程式碼，0 failed；增加設定頁與正常流 Send 的回歸檢查。 |
+| ESLint | 最新 CI pass | `npm run lint` 無阻擋錯誤；建置仍有工具鏈依賴棄用警告。 |
 | TypeScript | CI pass | `tsc --noEmit`。 |
 | Next.js build | CI pass | 正式建置成功。 |
-| GitHub `main` 最新提交 | **合併前待確認** | 以合併後工作流程結果為最終證據。 |
+| GitHub `main` 功能提交 | **`fccdfff7` 已驗證** | 合併後 CI Run `41564505606` 全部通過。 |
 | iPhone Safari/PWA | **未執行實機** | 截圖證明舊版失敗，不能反推新版已通過。 |
 | Ubuntu 原生 Codex／Qwen | **未執行實機** | 未取得用戶主機 runtime logs，不能聲稱模型切換、批准與 SSE 實際可用。 |
 | 安全滲透與負載測試 | **未執行** | 靜態程式碼審查不等於外部攻擊測試。 |
@@ -95,8 +95,18 @@
 
 ## 7. 判定
 
-本輪**可對外聲稱**：修正已在程式碼層將 model/effort 整合成一個二段式按鈕，並把 stop/send 移出絕對定位；可出示 CI 通過證據。
+本輪**可對外聲稱**：修正已在程式碼層將 model/effort 整合成一個二段式按鈕（輸入框與設定頁一致），並把 stop/send 移出絕對定位；已推送至 `main` 且有 69/69 CI 測試通過證據。
 
 本輪**不得聲稱**：完整 Codex App 對等、所有 CLI 版本均支援、iPhone WebKit 已實機驗收、對外網路公開安全、所有審查項目都已修正。
 
 參考協定：`https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md`；`https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/common.rs`。
+
+## 8. 最終整合補充（main：fccdfff7）
+
+- PR #3 合併時底部已是單一模型按鈕，但設定頁仍保留兩個獨立原生下拉選單；`fccdfff7` 已將設定頁統一為相同的模型→推理強度兩階段選單。
+- 比對最新 main 和原修正分支，`Workspace.tsx` 只修改設定頁選單區塊；`openwebui.css` 只新增按鈕樣式；另新增兩項回歸測試。未覆蓋先前合併的模型路由與後端修改。
+- GitHub Actions Run 41564505606（https://github.com/oMiki0826o/Codex-Workspace-Web/actions/runs/41564505606）：69/69 tests pass、lint pass、TypeScript pass、production build pass。建置期間另有 punycode、url.parse()、ESLint 依賴棄用警告，屬後續升級檢查項。
+- 未完成真正的 iPhone Safari PWA 實機、Codex App Server 主機端 E2E、Browser bounding-box 自動測試、安全滲透測試或長對話壓測。CSS 契約檢查不等於實際裝置驗證。
+- 接下來需特別測試 320／375／390／414／430 px、執行中 Stop＋Send 同時顯示、中文鍵盤與表情鍵盤、長模型名、工作區權限及 iOS PWA 焦點恢復。
+
+**後續優先順序：** ① 真實 iPhone 驗收；② 真實 App Server 批准協定 E2E；③ 移除重複 CSS 與失效功能入口；④ 事件增量投影和 SSE 重連；⑤ 長對話效能測試。
