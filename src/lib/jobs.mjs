@@ -82,11 +82,11 @@ export class AppServerJobManager {
     this.#store=store;
     this.#clientFactory=typeof clientOrFactory==='function'?clientOrFactory:()=>clientOrFactory||new AppServerClient();
   }
-  async start(jobId,{dir,sandbox='workspace-write',model='',effort=''}){
+  async start(jobId,{dir,sandbox='workspace-write',model='',effort='',route='cloud',bin=undefined}){
     const job=this.#store.getJob(jobId);if(!job)throw new Error('找不到工作');
     if(job.status!=='queued')throw new Error('工作並非等待狀態');
     const thread=this.#store.getThread(job.threadId);if(!thread)throw new Error('找不到對話');
-    const client=this.#clientFactory();this.#clients.set(jobId,client);
+    const client=this.#clientFactory(bin);this.#clients.set(jobId,client);
     let released=false;
     const releaseClient=()=>{if(released)return;released=true;this.#clients.delete(jobId);if(typeof client.close==='function')client.close();};
     const starting={cancelled:false};this.#starting.set(jobId,starting);
@@ -100,12 +100,15 @@ export class AppServerJobManager {
     await startup(()=>client.connect());
     if(finishBeforeTurn())return;
     let nativeThreadId=thread.codexThreadId;
-    if(nativeThreadId)await startup(()=>client.resumeThread(nativeThreadId,{cwd:dir,sandbox}));
+    if(nativeThreadId){
+      if(!thread.modelRoute)this.#store.setModelRoute(thread.id,route);
+      await startup(()=>client.resumeThread(nativeThreadId,{cwd:dir,sandbox}));
+    }
     else {
       const started=await startup(()=>client.startThread({cwd:dir,sandbox,model}));
       nativeThreadId=started.thread?.id;
       if(!nativeThreadId)throw new Error('Codex App Server 沒有回傳對話識別碼');
-      this.#store.setCodexThread(thread.id,nativeThreadId);
+      this.#store.setCodexThread(thread.id,nativeThreadId,route);
       this.#store.event(jobId,'thread.started',{type:'thread.started',thread_id:nativeThreadId});
     }
     if(finishBeforeTurn())return;

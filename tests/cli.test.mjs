@@ -12,6 +12,7 @@ test('resume targets explicit session, retains sandbox and cwd', () => {
 test('rejects unapproved sandbox or model injection', () => {
   assert.throws(()=>buildCodexArgs({dir:'/srv/x',sandbox:'danger-full-access'}));
   assert.throws(()=>buildCodexArgs({dir:'/srv/x',sandbox:'read-only',model:'x --y'}));
+  assert.doesNotThrow(()=>buildCodexArgs({dir:'/srv/x',sandbox:'read-only',model:'qwen3.5:4b-q4_K_M'}));
 });
 test('JSONL decoder combines split UTF8 chunks, skips invalid messages', () => {
   const messages=[];const decoder=new JsonlDecoder(m=>messages.push(m));

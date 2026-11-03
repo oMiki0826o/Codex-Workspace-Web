@@ -1,9 +1,9 @@
 export type Project={id:string;name:string;path:string;createdAt:string};
-export type ThreadSummary={id:string;projectId:string;title:string;updatedAt:string;codexThreadId:string|null};
+export type ThreadSummary={id:string;projectId:string;title:string;updatedAt:string;codexThreadId:string|null;modelRoute?:string|null};
 export type Job={id:string;threadId:string;prompt:string;status:string;exitCode:number|null;createdAt:string;startedAt:string|null;finishedAt:string|null};
 export type Thread=ThreadSummary&{jobs:Job[]};
 export type EventRecord={id:number;jobId:string;type:string;payload:Record<string,unknown>};
 export type FileNode={name:string;type:'file'|'directory';children?:FileNode[]};
 export type NativeItem={id:string;role:'user'|'assistant'|'tool';text:string;createdAt:string|null;type?:string};
 export type NativeThread={id:string;cwd:string;updatedAt:string;items:NativeItem[];usage:{input_tokens?:number;output_tokens?:number;total_tokens?:number}|null};
-export type CodexStatus={models:{id:string;name:string;reasoningEfforts:string[]}[];defaultModel:string;defaultEffort:string;usageWindows:{label:string;remainingPercent:number;resetsAt:number|null;durationMins:number|null}[]};
+export type CodexStatus={models:{id:string;name:string;reasoningEfforts:string[];route?:string}[];defaultModel:string;defaultEffort:string;usageWindows:{label:string;remainingPercent:number;resetsAt:number|null;durationMins:number|null}[];modelAvailability?:{cloud:boolean;qwen:boolean}};

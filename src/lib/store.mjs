@@ -13,13 +13,15 @@ export function createStore(filename){
   db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;');
   db.exec(`
     CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT UNIQUE NOT NULL, created_at TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS threads(id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), codex_thread_id TEXT, title TEXT NOT NULL DEFAULT '新的對話', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS threads(id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), codex_thread_id TEXT, model_route TEXT, title TEXT NOT NULL DEFAULT '新的對話', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id), prompt TEXT NOT NULL, request_key TEXT NOT NULL, status TEXT NOT NULL, exit_code INTEGER, pid INTEGER, started_at TEXT, finished_at TEXT, created_at TEXT NOT NULL, UNIQUE(thread_id,request_key));
     CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL REFERENCES jobs(id), type TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS events_job_cursor ON events(job_id,id);
     CREATE UNIQUE INDEX IF NOT EXISTS threads_codex_thread_id ON threads(codex_thread_id) WHERE codex_thread_id IS NOT NULL;
     CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL);
   `);
+  const columns=db.prepare('PRAGMA table_info(threads)').all().map(column=>column.name);
+  if(!columns.includes('model_route'))db.exec('ALTER TABLE threads ADD COLUMN model_route TEXT');
   db.prepare("UPDATE jobs SET status='interrupted', finished_at=? WHERE status IN ('running','queued')").run(now());
   const q=(sql,...params)=>db.prepare(sql).get(...params);
   const all=(sql,...params)=>db.prepare(sql).all(...params);
@@ -27,7 +29,7 @@ export function createStore(filename){
   function getJob(id){return rowJob(q('SELECT * FROM jobs WHERE id=?',id));}
   function getThread(id){
     const r=q('SELECT * FROM threads WHERE id=?',id);if(!r)return null;
-    return {id:r.id,projectId:r.project_id,codexThreadId:r.codex_thread_id,title:r.title,createdAt:r.created_at,updatedAt:r.updated_at,jobs:all('SELECT * FROM jobs WHERE thread_id=? ORDER BY created_at ASC',id).map(rowJob)};
+    return {id:r.id,projectId:r.project_id,codexThreadId:r.codex_thread_id,modelRoute:r.model_route,title:r.title,createdAt:r.created_at,updatedAt:r.updated_at,jobs:all('SELECT * FROM jobs WHERE thread_id=? ORDER BY created_at ASC',id).map(rowJob)};
   }
   return {
     close:()=>db.close(),
@@ -40,8 +42,9 @@ export function createStore(filename){
       if(!q('SELECT id FROM projects WHERE id=?',projectId))throw new Error('無效的專案');const id=randomUUID();const t=now();execute('INSERT INTO threads(id,project_id,codex_thread_id,title,created_at,updated_at) VALUES(?,?,?,?,?,?)',id,projectId,codexThreadId,title.slice(0,80)||'新的對話',t,t);return getThread(id);
     },
     getThread,
-    listThreads:(projectId)=>all('SELECT * FROM threads WHERE project_id=? ORDER BY updated_at DESC',projectId).map(r=>({id:r.id,projectId:r.project_id,title:r.title,updatedAt:r.updated_at,codexThreadId:r.codex_thread_id})),
-    setCodexThread:(id,codexId)=>execute('UPDATE threads SET codex_thread_id=?,updated_at=? WHERE id=?',codexId,now(),id),
+    listThreads:(projectId)=>all('SELECT * FROM threads WHERE project_id=? ORDER BY updated_at DESC',projectId).map(r=>({id:r.id,projectId:r.project_id,title:r.title,updatedAt:r.updated_at,codexThreadId:r.codex_thread_id,modelRoute:r.model_route})),
+    setCodexThread:(id,codexId,modelRoute=null)=>execute('UPDATE threads SET codex_thread_id=?,model_route=COALESCE(?,model_route),updated_at=? WHERE id=?',codexId,modelRoute,now(),id),
+    setModelRoute:(id,modelRoute)=>execute('UPDATE threads SET model_route=?,updated_at=? WHERE id=?',modelRoute,now(),id),
     renameThread:(id,title)=>execute('UPDATE threads SET title=?, updated_at=? WHERE id=?',title,now(),id),
     addJob(threadId,prompt,requestKey){const found=q('SELECT * FROM jobs WHERE thread_id=? AND request_key=?',threadId,requestKey);if(found)return rowJob(found);
       const id=randomUUID();execute('INSERT INTO jobs(id,thread_id,prompt,request_key,status,created_at) VALUES(?,?,?,?,?,?)',id,threadId,prompt,requestKey,'queued',now());execute('UPDATE threads SET updated_at=? WHERE id=?',now(),threadId);return getJob(id);},

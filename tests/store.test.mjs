@@ -14,8 +14,9 @@ test('persists projects, thread, job, and incremental events across store instan
   const thread=db.addThread(project.id);
   const job=db.addJob(thread.id,'請檢查專案','request-a');
   db.event(job.id,'thread.started',{type:'thread.started',thread_id:'session-01'});
-  db.setCodexThread(thread.id,'session-01');
+  db.setCodexThread(thread.id,'session-01','qwen');
   assert.equal(db.getThread(thread.id).codexThreadId,'session-01');
+  assert.equal(db.getThread(thread.id).modelRoute,'qwen');
   assert.equal(db.getEvents(job.id,0).length,1);
   assert.equal(db.addJob(thread.id,'請檢查專案','request-a').id,job.id);
   db.finishJob(job.id,'completed',0);

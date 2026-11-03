@@ -1,6 +1,9 @@
 import { StringDecoder } from 'node:string_decoder';
 
-const MODEL = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/;
+// Ollama model ids use `name:tag` and may include a registry path. They are
+// passed as one spawn argument and are additionally checked against the
+// server-side model registry before an App Server turn is started.
+const MODEL = /^[^\s\0]{1,128}$/;
 export function buildCodexArgs({dir, sessionId, sandbox='workspace-write', model='', effort=''}) {
   if (!['workspace-write','read-only'].includes(sandbox)) throw new Error('不允許的 Sandbox 模式');
   if (!dir || !dir.startsWith('/')) throw new Error('工作目錄必須是絕對路徑');
