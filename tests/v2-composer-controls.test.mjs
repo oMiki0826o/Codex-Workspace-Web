@@ -16,3 +16,16 @@ test('only model-advertised effort options are presented',()=>{
  assert.match(s,/supportedReasoningEfforts|reasoningEfforts/);
  assert.match(s,/models\.find\(m=>m\.id===\(model\|\|codexStatus\?\.defaultModel\)\)/);
 });
+
+test('settings uses the same two-stage model and reasoning picker as composer',()=>{
+ const src=read('src/components/Workspace.tsx');
+ assert.match(src,/className="outline-btn v2-settings-model-trigger"/);
+ assert.match(src,/setModelPickerStep\('model'\);setModal\('model'\)/);
+ assert.doesNotMatch(src,/<label className="form-field"><span className="form-label">推理強度<\/span><select/);
+});
+test('send button has a normal-flow position override at the end of active CSS',()=>{
+ const css=read('src/styles/openwebui.css');
+ assert.match(css,/\.composer-actions > \.send-btn\{position:static!important/);
+ assert.match(css,/\.composer-actions > \.composer-model-trigger\{flex:1 1 0/);
+ assert.match(css,/@media\(max-width:359px\)/);
+});

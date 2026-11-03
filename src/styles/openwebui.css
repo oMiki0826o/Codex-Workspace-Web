@@ -49,3 +49,7 @@ html,body{height:100%;overflow:hidden!important;position:static!important}.app{p
  .composer-actions > .composer-sandbox-trigger{flex-basis:94px;max-width:94px;padding:0 6px}
  .composer-actions > .composer-model-trigger{padding:0 6px}
 }
+
+/* Share the two-stage model/reasoning picker with the Settings panel. */
+.v2-settings-model-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;padding:11px 12px;max-width:100%;font:inherit;color:var(--text);text-align:left}
+.v2-settings-model-trigger span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
