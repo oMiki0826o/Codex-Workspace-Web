@@ -86,7 +86,7 @@ export default function Workspace(){
  useEffect(()=>{
   const root=document.documentElement;
   const viewport=window.visualViewport;
-  const composer=document.querySelector<HTMLElement>('.composer-wrap');
+
   let frame=0;
   let timers:ReturnType<typeof setTimeout>[]=[];
   let baseline=Math.max(window.innerHeight,viewport?.height||0);

@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {listAppServerSessions,readAppServerSession,normalizeAppServerItems} from '../src/lib/native-appserver.mjs';
+import {listAppServerSessions,readAppServerSession} from '../src/lib/native-appserver.mjs';
 test('thread list filters outside workspace even if server returns it',async()=>{
  const client={listThreads:async()=>({data:[{id:'ok',cwd:'/app/project',updatedAt:1760000000},{id:'bad',cwd:'/etc',updatedAt:1760000000}],nextCursor:null})};
  const data=await listAppServerSessions(client,'/app/project');
