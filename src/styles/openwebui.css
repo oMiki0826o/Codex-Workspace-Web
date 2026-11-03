@@ -59,6 +59,7 @@ html,body{height:100%;overflow:hidden!important;position:static!important}.app{p
    Mount the panel in the body below the topbar, filling available width. */
 .inspector-scrim{display:none}
 @media(max-width:767px){
+ body.drawer-active{touch-action:auto!important}
  .app .body{position:relative!important;isolation:isolate;min-width:0;min-height:0;overflow:hidden}
  .app .body > .inspector-scrim{display:block;position:absolute;inset:0;z-index:51;border:0;border-radius:0;background:rgba(0,0,0,.62);padding:0;cursor:default}
  .app .body > .right.open{
@@ -92,7 +93,7 @@ html,body{height:100%;overflow:hidden!important;position:static!important}.app{p
  .app .body > .right.open .right-body{
    flex:1 1 0%;min-height:0;min-width:0;width:100%;
    overflow-y:auto!important;overflow-x:hidden!important;
-   overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+   overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;
    padding:12px 15px;
  }
  .app .body > .right.open .file-tree,.app .body > .right.open .file-row{

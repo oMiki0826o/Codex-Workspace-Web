@@ -30,3 +30,10 @@ test('mobile inspector styles are scoped and do not replace desktop split panel'
  assert.match(mobile,/@media\(max-width:767px\)/);
  assert.doesNotMatch(mobile,/@media\(min-width:768px\)/);
 });
+
+test('scroll touch gestures work within inspector despite body drawer-active state',()=>{
+ const css=read('src/styles/openwebui.css');
+ const scoped=css.slice(css.lastIndexOf('/* iOS inspector:'));
+ assert.match(scoped,/body\.drawer-active\{touch-action:auto!important\}/);
+ assert.match(scoped,/\.app \.body > \.right\.open \.right-body\{[\s\S]*?touch-action:pan-y/);
+});
