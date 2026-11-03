@@ -53,3 +53,55 @@ html,body{height:100%;overflow:hidden!important;position:static!important}.app{p
 /* Share the two-stage model/reasoning picker with the Settings panel. */
 .v2-settings-model-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;padding:11px 12px;max-width:100%;font:inherit;color:var(--text);text-align:left}
 .v2-settings-model-trigger span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* iOS inspector: legacy rules anchored left and right at the same time,
+   leaving a strip of chat exposed and letting the panel cover the status bar.
+   Mount the panel in the body below the topbar, filling available width. */
+.inspector-scrim{display:none}
+@media(max-width:767px){
+ body.drawer-active{touch-action:auto!important}
+ .app .body{position:relative!important;isolation:isolate;min-width:0;min-height:0;overflow:hidden}
+ .app .body > .inspector-scrim{display:block;position:absolute;inset:0;z-index:51;border:0;border-radius:0;background:rgba(0,0,0,.62);padding:0;cursor:default}
+ .app .body > .right.open{
+   position:absolute!important;
+   inset:0!important;
+   top:0!important;right:0!important;bottom:0!important;left:0!important;
+   width:100%!important;min-width:0!important;max-width:100%!important;
+   height:100%!important;max-height:100%!important;
+   margin:0!important;padding:0!important;
+   transform:none!important;transition:none!important;
+   z-index:52!important;
+   display:flex!important;flex-direction:column;overflow:hidden!important;
+   background:#141417!important;box-shadow:none!important;
+ }
+ .app .body > .right.open .right-tabs{
+   flex:0 0 56px;min-height:56px;display:flex;align-items:center;
+   padding:0 10px;gap:3px;min-width:0;width:100%;
+   overflow:hidden;white-space:nowrap;
+ }
+ .app .body > .right.open .right-tab{
+   min-width:0;flex:0 1 auto;display:inline-flex;align-items:center;
+   justify-content:center;gap:6px;padding:0 clamp(5px,2vw,13px);
+   height:46px;white-space:nowrap;font-size:13px;
+ }
+ .app .body > .right.open .right-close{
+   display:grid!important;place-items:center!important;
+   flex:0 0 44px!important;width:44px!important;height:44px!important;
+   margin-left:auto!important;padding:0!important;
+   border:1px solid #3c3c42;border-radius:10px;
+ }
+ .app .body > .right.open .right-body{
+   flex:1 1 0%;min-height:0;min-width:0;width:100%;
+   overflow-y:auto!important;overflow-x:hidden!important;
+   overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;
+   padding:12px 15px;
+ }
+ .app .body > .right.open .file-tree,.app .body > .right.open .file-row{
+   max-width:100%;min-width:0;overflow-x:hidden;
+ }
+ .app .body > .right.open .right-bottom{
+   flex:0 0 auto;min-width:0;max-width:100%;line-height:1.4;
+   padding:12px 16px max(15px,env(safe-area-inset-bottom,0px));
+   background:#141417;
+ }
+}
