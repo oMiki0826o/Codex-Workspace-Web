@@ -15,7 +15,7 @@ test('single mobile flex shell holds normal-flow composer above keyboard',()=>{
  assert.match(css,/\.main\{[^}]*flex:1 1 0%/);
  assert.match(src,/--v2-height/);
  assert.match(css,/\.chat-scroll\{[^}]*min-height:0/);
- assert.match(css,/\.composer-actions[^}]*overflow-x:auto/);
+ assert.match(css,/\.composer-actions\s*\{[^}]*overflow-x:hidden!important/);
 });
 test('service worker bypasses stale navigation cache',()=>{
  const sw=read('public/sw.js');assert.match(sw,/skipWaiting\(\)/);assert.match(sw,/request\.mode === 'navigate'/);

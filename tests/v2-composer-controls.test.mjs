@@ -1,17 +1,18 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
-test('composer model, effort, sandbox have distinct native pickers, not three nested modal clones',()=>{
+test('single staged model picker resets strength when changing model',()=>{
  const s=read('src/components/Workspace.tsx');
- assert.match(s,/aria-label="選擇 Codex 模型"/);
- assert.match(s,/aria-label="推理強度"/);
- assert.match(s,/aria-label="執行權限"/);
- assert.doesNotMatch(s,/className="chip" onClick=\{\(\)=>setModal\('(model|effort|sandbox)'\)/);
- assert.match(s,/setModel\(e.target.value\);setEffort\(''\)/);
+ assert.match(s,/aria-label="選擇模型與推理強度"/);
+ assert.match(s,/modelPickerStep==='model'/);
+ assert.match(s,/setModel\(option.value\)/);
+ assert.match(s,/setEffort\(''\)/);
+ assert.match(s,/setModelPickerStep\('effort'\)/);
+ assert.doesNotMatch(s,/className="v2-chip-select"/);
 });
-test('reasoning effort is constrained by selected model rather than global guessed strengths',()=>{
+test('only model-advertised effort options are presented',()=>{
  const s=read('src/components/Workspace.tsx');
- assert.match(s,/models\.find\(x=>x\.id===\(model\|\|codexStatus\?\.defaultModel\)\)\?\.reasoningEfforts/);
- const css=read('src/styles/openwebui.css');
- assert.match(css,/\.v2-chip-select\{position:relative/);
- assert.match(css,/\.v2-chip-select select\{/);
+ assert.match(s,/supportedReasoningEfforts|reasoningEfforts/);
+ assert.match(s,/models\.find\(m=>m\.id===\(model\|\|codexStatus\?\.defaultModel\)\)/);
 });
