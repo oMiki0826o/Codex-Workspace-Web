@@ -105,3 +105,28 @@ html,body{height:100%;overflow:hidden!important;position:static!important}.app{p
    background:#141417;
  }
 }
+
+/* Persistent Codex approval dock: a flex sibling, not a chat message or an
+   overlay. The chat scrolls independently; the composer stays below it. */
+.v2-approval-dock{position:relative;z-index:5;flex:0 0 auto;min-width:0;width:100%;max-height:min(40dvh,340px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#111113;border-top:1px solid #584831;border-bottom:1px solid #363033}
+.v2-approval-dock-inner{max-width:850px;margin:0 auto;padding:12px clamp(12px,3vw,30px)}
+.v2-approval-dock-card{min-width:0;padding:13px 14px;background:#211c17;border:1px solid #765939;border-radius:13px;box-shadow:0 5px 20px #0005}
+.v2-approval-dock-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.v2-approval-dock-heading strong{display:flex;align-items:center;gap:9px;color:#f2cb8b;font-size:14px}
+.v2-approval-count{color:#d8bd90;font-size:12px}
+.v2-approval-reason{margin:10px 0 8px;font-size:13px;line-height:1.55;overflow-wrap:anywhere;color:#ededf0}
+.v2-approval-cwd{display:block;min-width:0;overflow-wrap:anywhere;font-size:11px;color:#bcb0a0;margin-bottom:8px}
+.v2-approval-details{max-width:100%;margin:7px 0;font-size:12px;color:#d5cfcb}
+.v2-approval-details summary{display:flex;align-items:center;gap:6px;cursor:pointer;min-height:28px;min-width:0;overflow:hidden;color:#cfc6be}
+.v2-approval-details summary:before{content:'▸';display:inline-block;flex:0 0 auto}
+.v2-approval-details[open] summary:before{content:'▾'}
+.v2-approval-details summary code{display:block;min-width:0;flex:1 1 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#bcae9e}
+.v2-approval-details pre{white-space:pre;max-width:100%;overflow:auto;max-height:170px;margin:6px 0;padding:10px;border:1px solid #3f3731;border-radius:7px;background:#111113;font-size:12px;line-height:1.55}
+.v2-approval-dock-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:12px}
+.v2-approval-dock-actions button{flex:1 1 112px;min-width:0;min-height:44px;padding:10px 12px;border:1px solid #66615c;border-radius:9px;background:#353330;color:#f4f1ed;font-size:13px;white-space:nowrap;cursor:pointer}
+.v2-approval-dock-actions button:first-child{background:#655038;border-color:#aa7f50}
+.v2-approval-dock-actions button.danger{color:#f1a3a6;border-color:#7d454b;background:#2a2224}
+.v2-approval-dock-actions button:disabled{opacity:.55;cursor:wait}
+.v2-approval-submitting{display:flex;align-items:center;gap:6px;margin:9px 0 0;font-size:12px;color:#d1bf9d}
+html[data-keyboard-open="true"] .v2-approval-dock{max-height:145px}
+@media(max-width:767px){.v2-approval-dock-inner{padding:9px 12px}.v2-approval-dock-card{padding:11px 12px}.v2-approval-reason{font-size:12px}.v2-approval-dock-actions{gap:6px}.v2-approval-dock-actions button{font-size:12px;padding:10px 7px;flex:1 1 95px}}
