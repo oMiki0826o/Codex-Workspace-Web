@@ -15,6 +15,7 @@ dist/
 
 # Local application data and SQLite databases
 .data/
+data/superpowers/
 *.db
 *.db-shm
 *.db-wal
