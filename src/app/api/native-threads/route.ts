@@ -12,6 +12,6 @@ export async function GET(req:Request){
   const threads=await listAppServerSessions(client,workspace);
   if(threads.length)return Response.json({threads,source:'app-server'},{headers:{'Cache-Control':'no-store'}});
  }catch{/* fallback for older clients; never return unrelated paths */}
- finally{client.close();}
+ finally{await client.close();}
  return Response.json({threads:getNativeSessionSync(workspace).list(),source:'legacy-jsonl'},{headers:{'Cache-Control':'no-store'}});
 }

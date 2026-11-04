@@ -59,7 +59,7 @@ export class AppServerClient extends EventEmitter {
   const payload=JSON.stringify({jsonrpc:'2.0',id,result});
   return await new Promise((resolve,reject)=>this.#child.stdin.write(`${payload}\n`,error=>error?reject(error):resolve()));
  }
- close(){this.#child?.kill('SIGTERM');}
+ async close({graceMs=5000,forceMs=5000}={}){const child=this.#child;if(!child)return {code:null,signal:null};const exited=new Promise(resolve=>child.once('exit',(code,signal)=>resolve({code,signal})));const wait=ms=>new Promise(resolve=>{const timer=setTimeout(()=>resolve(null),ms);timer.unref?.();});for(const {reject} of this.#pending.values())reject(new Error('Codex App Server client closed'));this.#pending.clear();child.kill('SIGTERM');const grace=await Promise.race([exited,wait(graceMs)]);if(grace)return grace;child.kill('SIGKILL');return await Promise.race([exited,wait(forceMs).then(()=>({code:null,signal:'SIGKILL'}))]);}
  #push(bytes){this.#buffer+=this.#decoder.write(bytes);if(this.#buffer.length>4*1024*1024){this.#buffer='';this.emit('protocolError','App Server message exceeded 4 MiB');return;}let index;while((index=this.#buffer.indexOf('\n'))>=0){const line=this.#buffer.slice(0,index);this.#buffer=this.#buffer.slice(index+1);if(!line.trim())continue;try{const message=JSON.parse(line);if('id' in message&&this.#pending.has(message.id)){const pending=this.#pending.get(message.id);this.#pending.delete(message.id);if(message.error)pending.reject(new Error(message.error.message||'App Server request failed'));else pending.resolve(message.result);}else if('id' in message&&message.method)this.emit('request',message);else this.emit('notification',message);}catch{this.emit('protocolError',line);}}}
 }
 const key=Symbol.for('codex-webui.appServerClient');

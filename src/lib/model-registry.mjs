@@ -18,7 +18,7 @@ async function cloudModels(clientFactory=(bin)=>new AppServerClient(bin)){
   const response=await client.listModels();
   const items=Array.isArray(response?.data)?response.data:Array.isArray(response?.models)?response.models:[];
   return items.map(model=>({id:model.slug||model.id||model.model,name:model.display_name||model.displayName||model.name||model.slug||model.id,reasoningEfforts:normalizeEfforts(model),route:CLOUD})).filter(model=>typeof model.id==='string');
- }finally{client.close();}
+ }finally{await client.close();}
 }
 
 async function qwenModels(fetcher=fetch){

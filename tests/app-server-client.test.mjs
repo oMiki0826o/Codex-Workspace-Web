@@ -10,5 +10,5 @@ test('a missing Codex binary rejects immediately rather than waiting for the RPC
   const started=Date.now();
   await assert.rejects(client.connect(),/Codex App Server|ENOENT|spawn/i);
   assert.ok(Date.now()-started<4000,'spawn error must not wait for a 30-second request timeout');
-  client.close();
+  await client.close();
 });

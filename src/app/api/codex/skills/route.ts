@@ -8,5 +8,5 @@ export async function GET(req:Request){
   const items=groups.flatMap((group:{skills?:unknown[];cwd?:string})=>Array.isArray(group.skills)?group.skills.map((s:unknown)=>{const row=s as Record<string,unknown>;return {name:row.name,description:row.description,enabled:row.enabled,cwd:group.cwd};}):[]);
   return Response.json({supported:true,items});}
  catch{return Response.json({supported:false,items:[],message:'這個 Codex App Server 未提供 Skills 清單。'});}
- finally{client.close();}
+ finally{await client.close();}
 }

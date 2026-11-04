@@ -88,17 +88,17 @@ export class AppServerJobManager {
     const thread=this.#store.getThread(job.threadId);if(!thread)throw new Error('找不到對話');
     const client=this.#clientFactory(bin);this.#clients.set(jobId,client);
     let released=false;
-    const releaseClient=()=>{if(released)return;released=true;this.#clients.delete(jobId);if(typeof client.close==='function')client.close();};
+    const releaseClient=async()=>{if(released)return;released=true;this.#clients.delete(jobId);if(typeof client.close==='function')await client.close();};
     const starting={cancelled:false};this.#starting.set(jobId,starting);
-    const finishBeforeTurn=()=>{
+    const finishBeforeTurn=async()=>{
       if(!starting.cancelled)return false;
       this.#store.finishJob(jobId,'cancelled');
       this.#store.event(jobId,'webui.finished',{type:'webui.finished',status:'cancelled',exitCode:null});
-      this.#starting.delete(jobId);releaseClient();return true;
+      this.#starting.delete(jobId);await releaseClient();return true;
     };
-    const startup=async action=>{try{return await action();}catch(error){this.#starting.delete(jobId);releaseClient();throw error;}};
+    const startup=async action=>{try{return await action();}catch(error){this.#starting.delete(jobId);await releaseClient();throw error;}};
     await startup(()=>client.connect());
-    if(finishBeforeTurn())return;
+    if(await finishBeforeTurn())return;
     let nativeThreadId=thread.codexThreadId;
     if(nativeThreadId){
       if(!thread.modelRoute)this.#store.setModelRoute(thread.id,route);
@@ -111,7 +111,7 @@ export class AppServerJobManager {
       this.#store.setCodexThread(thread.id,nativeThreadId,route);
       this.#store.event(jobId,'thread.started',{type:'thread.started',thread_id:nativeThreadId});
     }
-    if(finishBeforeTurn())return;
+    if(await finishBeforeTurn())return;
     let settled=false;let turnId='';let onNotification;let onRequest;let onExit;
     const proposedFileChanges=new Map();
     const finish=(status,code=0,message='')=>{
@@ -125,8 +125,8 @@ export class AppServerJobManager {
       this.#running.delete(jobId);
       this.#pendingApprovals.delete(jobId);
       this.#starting.delete(jobId);
-      if(nativeThreadId&&typeof client.unsubscribeThread==='function')client.unsubscribeThread(nativeThreadId).catch(error=>this.#store.event(jobId,'webui.warning',{type:'webui.warning',message:`無法釋放原生對話：${error instanceof Error?error.message:String(error)}`})).finally(releaseClient);
-      else releaseClient();
+      if(nativeThreadId&&typeof client.unsubscribeThread==='function')client.unsubscribeThread(nativeThreadId).catch(error=>this.#store.event(jobId,'webui.warning',{type:'webui.warning',message:`無法釋放原生對話：${error instanceof Error?error.message:String(error)}`})).finally(()=>void releaseClient());
+      else void releaseClient();
     };
     onNotification=message=>{
       const params=message?.params||{};

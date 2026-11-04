@@ -15,5 +15,5 @@ export async function GET(req:Request){
   const items=servers.map(server=>({name:server.name||server.serverName,status:server.status,tools:Array.isArray(server.tools)?server.tools.map((tool:Record<string,unknown>)=>({name:tool.name,description:tool.description})):[]}));
   return Response.json({supported:true,items});}
  catch{return Response.json({supported:false,items:[],message:'這個 Codex App Server 未提供 MCP 狀態。'});}
- finally{client.close();}
+ finally{await client.close();}
 }
