@@ -3,8 +3,8 @@ import { AppServerClient } from './app-server-client.mjs';
 const CLOUD='cloud';
 const QWEN='qwen';
 const qwenModelsUrl=()=>process.env.QWEN_OLLAMA_MODELS_URL||'http://192.168.1.167:11434/v1/models';
-const qwenBin=()=>process.env.CODEX_QWEN_BIN||process.env.CODEX_BIN||'codex';
-const cloudBin=()=>process.env.CODEX_CLOUD_BIN||'codex-cloud';
+const qwenBin=()=>process.env.CODEX_QWEN_BIN||'codex-qwen';
+const cloudBin=()=>process.env.CODEX_BIN||'codex';
 
 const efforts=(model)=>Array.isArray(model?.supportedReasoningEfforts)?model.supportedReasoningEfforts
   :Array.isArray(model?.reasoningEfforts)?model.reasoningEfforts

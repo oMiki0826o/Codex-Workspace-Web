@@ -18,6 +18,6 @@ test('rejects a browser-supplied model that is absent from the dynamic registry'
 });
 
 test('selects separate binaries for cloud and Qwen routes',()=>{
- assert.equal(modelBinForRoute('cloud'),'codex-cloud');
- assert.equal(modelBinForRoute('qwen'),'codex');
+ assert.equal(modelBinForRoute('cloud'),'codex');
+ assert.equal(modelBinForRoute('qwen'),'codex-qwen');
 });

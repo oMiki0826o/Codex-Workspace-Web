@@ -58,15 +58,14 @@ npm run build
 ```dotenv
 ALLOWED_PROJECT_ROOTS=/home/your-user/projects,/srv/projects
 CODEX_BIN=codex
-CODEX_CLOUD_BIN=codex-cloud
-CODEX_QWEN_BIN=codex
+CODEX_QWEN_BIN=codex-qwen
 QWEN_OLLAMA_MODELS_URL=http://192.168.1.167:11434/v1/models
 CODEX_WEB_DATA_DIR=/home/your-user/.local/share/codex-webui
 CODEX_WEB_MAX_ACTIVE=2
 DEFAULT_PROJECT_PATH=/home/your-user/projects
 ```
 
-`CODEX_CLOUD_BIN` 與 `CODEX_QWEN_BIN` 讓同一個 WebUI 依選取模型啟動正確的 App Server。Qwen 清單只由伺服器端向 `QWEN_OLLAMA_MODELS_URL` 動態讀取，模型名稱不寫死、也不會暴露 LAN 端點給瀏覽器。已開始的對話會鎖定模型提供者；要在雲端 Codex 與 Qwen 之間切換，請建立新對話。
+`CODEX_BIN` 是正常的 Codex CLI；`CODEX_QWEN_BIN` 是只供 Qwen 使用的 adapter。WebUI 依選取模型啟動正確的 App Server。Qwen 清單只由伺服器端向 `QWEN_OLLAMA_MODELS_URL` 動態讀取，模型名稱不寫死、也不會暴露 LAN 端點給瀏覽器。已開始的對話會鎖定模型提供者；要在雲端 Codex 與 Qwen 之間切換，請建立新對話。
 
 ### 使用方式
 
@@ -151,15 +150,14 @@ Configure `.env` for the actual host paths:
 ```dotenv
 ALLOWED_PROJECT_ROOTS=/home/your-user/projects,/srv/projects
 CODEX_BIN=codex
-CODEX_CLOUD_BIN=codex-cloud
-CODEX_QWEN_BIN=codex
+CODEX_QWEN_BIN=codex-qwen
 QWEN_OLLAMA_MODELS_URL=http://192.168.1.167:11434/v1/models
 CODEX_WEB_DATA_DIR=/home/your-user/.local/share/codex-webui
 CODEX_WEB_MAX_ACTIVE=2
 DEFAULT_PROJECT_PATH=/home/your-user/projects
 ```
 
-`CODEX_CLOUD_BIN` and `CODEX_QWEN_BIN` select the correct App Server for the selected model in one WebUI. Qwen model discovery occurs server-side from `QWEN_OLLAMA_MODELS_URL`; model names are not hard-coded and the LAN endpoint is not exposed to the browser. A conversation keeps its initial provider; start a new conversation to switch between cloud Codex and Qwen.
+`CODEX_BIN` is the normal Codex CLI, while `CODEX_QWEN_BIN` is the Qwen-only adapter. The WebUI selects the correct App Server from the chosen model. Qwen model discovery occurs server-side from `QWEN_OLLAMA_MODELS_URL`; model names are not hard-coded and the LAN endpoint is not exposed to the browser. A conversation keeps its initial provider; start a new conversation to switch between cloud Codex and Qwen.
 
 ### Usage
 
